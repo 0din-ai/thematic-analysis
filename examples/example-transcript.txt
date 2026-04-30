@@ -1,0 +1,29 @@
+Meeting Title: Customer Interview, Example Product Team
+Date: Apr 15
+
+Meeting participants:
+Jane Smith, moderator
+Alice Johnson, Product Manager, Example Corp
+
+Transcript:
+
+Jane: Thanks for taking the time to chat with us today, Alice. Can you start by telling us a bit about your role?
+Alice: Sure! I'm a product manager at Example Corp. I work on the main dashboard product that our enterprise customers use.
+Jane: Great. And how long have you been in this role?
+Alice: About two years now. Before that I was on the mobile team.
+Jane: So thinking about the tools and products you use day to day — what's working well for you right now?
+Alice: Honestly, the core workflow is solid. Our users can get their reports generated pretty quickly. But the onboarding piece is where we really struggle. New users have a hard time figuring out where to start.
+Jane: Can you tell me more about that? What does the onboarding experience look like today?
+Alice: Right now it's basically a series of tooltip walkthroughs. But they're generic — they don't account for what the user actually needs to do. So someone who needs to set up an integration gets the same walkthrough as someone who just wants to view reports.
+Jane: That sounds frustrating. Have you tried anything to address this?
+Alice: We experimented with a role-based onboarding flow last quarter. It helped a bit — we saw maybe a 10% improvement in first-week retention. But it's still not great because the roles don't perfectly map to actual use cases.
+Jane: Interesting. If you could wave a magic wand and fix one thing about the onboarding, what would it be?
+Alice: I'd want the product to just understand what the user is trying to do and guide them there. Like, if someone's been invited to a workspace by their manager, we probably know what that manager's team uses. Why not start them there instead of showing a generic tour?
+Jane: That's a really compelling idea. Any concerns about an approach like that?
+Alice: Privacy, mainly. We'd need to be careful about what data we use to personalize the experience. Our enterprise customers are sensitive about that. There was actually an incident last year where we surfaced some cross-team data that shouldn't have been visible.
+Jane: Oh wow, that's significant. How did that affect the team's approach?
+Alice: It made everyone much more cautious. Now any feature that touches cross-team data has to go through a security review. Which is the right call, but it slows things down a lot.
+Jane: Makes sense. Is there anything else about your experience with the product that you think we should know about?
+Alice: I think the biggest thing is just that we need better tools for measuring whether our onboarding changes are actually working. Right now we're mostly looking at retention numbers, but that's a lagging indicator. I'd love something that tells me in real-time whether a new user is struggling.
+Jane: That's really helpful. Thank you so much for your time today, Alice.
+Alice: Of course! Happy to help.

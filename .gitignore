@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment
+.env
+
+# Analysis outputs
+projects/*/output/
+projects/*/transcripts/
+
+# OS
+.DS_Store
+.idea

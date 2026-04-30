@@ -1,0 +1,51 @@
+# Thematic Analysis Configuration
+#
+# This is an example config. Copy it to your project directory as config.toml
+# and edit the values, or use `thematic-analysis init` to generate one
+# interactively.
+
+[settings]
+# OpenAI model to use for analysis.
+# Options: gpt-4o, gpt-5, gpt-5.4, gpt-5.5
+model = "gpt-5.4"
+
+# Reasoning effort for models that support it (gpt-5.4, gpt-5.5).
+# Options: none, minimal, low, medium, high, xhigh
+# Higher effort = better quality but slower and more expensive.
+reasoning_effort = "high"
+
+# Your name as the interviewer. The AI uses this to distinguish your
+# questions from the participant's responses in the transcript.
+moderator_name = "Jane Smith"
+
+# Uncomment to use a custom prompts file instead of the built-in default.
+# Path is relative to this config file.
+# prompts_file = "./my-custom-prompts.md"
+
+[context]
+# Your research questions. These are injected into Stage 3 (Develop Themes)
+# to guide the thematic framework construction.
+research_questions = """
+1. What challenges do users face when onboarding to the product?
+2. What features do users value most and why?
+3. Where do users experience friction in their daily workflows?
+"""
+
+# Business context for the research. This is injected into Stage 4
+# (Why It Matters) to ground the analysis in business implications.
+business_context = """
+Our team is exploring opportunities to improve the onboarding experience
+for new users. We've seen a 30% drop-off in the first week and want to
+understand what's driving that from the user's perspective.
+"""
+
+# Add one or more transcripts. Paths are relative to this config file.
+# Use `thematic-analysis import-transcript` to add these automatically.
+
+[[transcripts]]
+path = "./example-transcript.txt"
+participant = "Alice Johnson"
+
+# [[transcripts]]
+# path = "./transcripts/participant-2-transcript.txt"
+# participant = "Bob Chen"
