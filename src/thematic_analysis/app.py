@@ -34,7 +34,10 @@ from .resume import (
 from .steps import build_stage_files, build_steps
 from .verification import (
     extract_quotes,
+    format_registry_for_llm,
     format_verification_summary,
+    load_verified_quotes,
+    save_verified_quotes,
     strip_rejected_quotes,
     verify_verbatims,
     verify_verbatims_iter,
@@ -378,26 +381,21 @@ def _build_step_context(step, steps) -> tuple[list[dict], str]:
                 ),
             }]
 
-    # Themes step: re-inject codes with verified quotes
+    # Inject verified quotes registry for all analysis steps
     prompt_content = step.prompt
-    if step.file_slug == "develop-themes":
-        coding_steps = [s for s in steps if s.step_type == "coding"]
-        context_parts = []
-        for cs in coding_steps:
-            coding_file = output_dir / cs.filename
-            if coding_file.exists():
-                content = coding_file.read_text(encoding="utf-8")
-                context_parts.append(f"### {cs.participant}\n\n{content}")
-        if context_parts:
-            codes_context = "\n\n---\n\n".join(context_parts)
+    if step.step_type == "analysis":
+        registry = load_verified_quotes(output_dir)
+        if registry["quotes"]:
+            registry_text = format_registry_for_llm(registry)
             prompt_content = (
-                "Below are the codes with their verified verbatim quotes "
-                "from each transcript. When adding supporting quotes to "
-                "themes, select from these verified quotes \u2014 do not "
-                "paraphrase or create new quotes.\n\n"
-                + codes_context
+                prompt_content
                 + "\n\n---\n\n"
-                + step.prompt
+                "## Verified Quotes\n\n"
+                "Below is the registry of verified verbatim quotes from "
+                "the coding phase. When including quotes in your analysis, "
+                "you MUST select from this list. Do not paraphrase, modify, "
+                "or create new quotes.\n\n"
+                + registry_text
             )
 
     return messages, prompt_content
@@ -583,6 +581,28 @@ def reject_quotes():
     return jsonify({"ok": True, "response": _state["last_response"]})
 
 
+@app.route("/api/save-verified-quotes", methods=["POST"])
+def save_verified_quotes_endpoint():
+    """Save verified quotes from a coding step to the registry."""
+    if _state["project_dir"] is None or _state["steps"] is None:
+        return jsonify({"error": "No project active"}), 400
+
+    data = request.json
+    verification_data = data.get("verification_data", {})
+    accepted_indices = data.get("accepted_indices", [])
+
+    step = _state["steps"][_state["step_index"]]
+    output_dir = _state["project_dir"] / "output"
+
+    registry = save_verified_quotes(
+        output_dir, verification_data, accepted_indices, step.filename
+    )
+    return jsonify({
+        "ok": True,
+        "total_quotes": registry["metadata"]["total_quotes"],
+    })
+
+
 @app.route("/api/decision", methods=["POST"])
 def decision():
     """Handle the user's review decision: continue, retry, or quit."""
@@ -685,10 +705,13 @@ def download_zip():
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        # Add output .md files
+        # Add output .md files and verified quotes registry
         if output_dir.exists():
             for f in sorted(output_dir.glob("*.md")):
                 zf.write(f, f"output/{f.name}")
+            registry_file = output_dir / "verified-quotes.json"
+            if registry_file.exists():
+                zf.write(registry_file, f"output/{registry_file.name}")
 
         # Add config
         config_file = project_dir / "config.toml"

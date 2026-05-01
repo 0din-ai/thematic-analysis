@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import re
+from collections import defaultdict
 from collections.abc import Generator
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 from rapidfuzz import fuzz
@@ -271,3 +274,121 @@ def format_verification_summary(results: list[VerbatimResult]) -> dict:
             "unverified_count": len(unverified),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Verified quotes registry
+# ---------------------------------------------------------------------------
+
+_REGISTRY_FILE = "verified-quotes.json"
+
+
+def _empty_registry() -> dict:
+    return {
+        "quotes": [],
+        "metadata": {
+            "total_quotes": 0,
+            "auto_verified": 0,
+            "user_accepted": 0,
+            "coding_steps_completed": [],
+            "last_updated": None,
+        },
+    }
+
+
+def load_verified_quotes(output_dir: Path) -> dict:
+    """Load the verified quotes registry from disk."""
+    path = output_dir / _REGISTRY_FILE
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    return _empty_registry()
+
+
+def save_verified_quotes(
+    output_dir: Path,
+    verification_summary: dict,
+    accepted_indices: list[int],
+    step_filename: str,
+) -> dict:
+    """Append newly verified quotes to the registry and save.
+
+    Args:
+        output_dir: Project output directory.
+        verification_summary: Dict from format_verification_summary().
+        accepted_indices: Indices into summary["unverified"] that the
+            user accepted.
+        step_filename: e.g. "01a-codes-alice" for metadata tracking.
+
+    Returns the updated registry dict.
+    """
+    registry = load_verified_quotes(output_dir)
+    existing_texts = {q["text"] for q in registry["quotes"]}
+
+    # Auto-verified quotes
+    for item in verification_summary.get("verified", []):
+        text = item["quote"]
+        if text not in existing_texts:
+            registry["quotes"].append({
+                "text": text,
+                "participant": item.get("participant", ""),
+                "line_number": item.get("line_number", 0),
+                "source": "auto-verified",
+                "match_ratio": 1.0,
+            })
+            existing_texts.add(text)
+
+    # User-accepted unverified quotes
+    unverified = verification_summary.get("unverified", [])
+    for idx in accepted_indices:
+        if 0 <= idx < len(unverified):
+            item = unverified[idx]
+            text = item["quote"]
+            if text not in existing_texts:
+                registry["quotes"].append({
+                    "text": text,
+                    "participant": item.get("participant", ""),
+                    "line_number": item.get("line_number", 0),
+                    "source": "user-accepted",
+                    "match_ratio": item.get("match_ratio", 0.0),
+                })
+                existing_texts.add(text)
+
+    # Update metadata
+    meta = registry["metadata"]
+    meta["total_quotes"] = len(registry["quotes"])
+    meta["auto_verified"] = sum(
+        1 for q in registry["quotes"] if q["source"] == "auto-verified"
+    )
+    meta["user_accepted"] = sum(
+        1 for q in registry["quotes"] if q["source"] == "user-accepted"
+    )
+    if step_filename not in meta["coding_steps_completed"]:
+        meta["coding_steps_completed"].append(step_filename)
+    meta["last_updated"] = datetime.now(timezone.utc).isoformat()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / _REGISTRY_FILE).write_text(
+        json.dumps(registry, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    return registry
+
+
+def format_registry_for_llm(registry: dict) -> str:
+    """Format the verified quotes registry as readable text for LLM context."""
+    quotes = registry.get("quotes", [])
+    if not quotes:
+        return ""
+
+    by_participant: dict[str, list[dict]] = defaultdict(list)
+    for q in quotes:
+        by_participant[q.get("participant", "Unknown")].append(q)
+
+    parts = []
+    for participant, pquotes in by_participant.items():
+        lines = [f"### {participant} ({len(pquotes)} quotes)"]
+        for i, q in enumerate(pquotes, 1):
+            line_ref = f" (line {q['line_number']})" if q.get("line_number") else ""
+            lines.append(f'{i}. "{q["text"]}"{line_ref}')
+        parts.append("\n".join(lines))
+
+    return "\n\n".join(parts)

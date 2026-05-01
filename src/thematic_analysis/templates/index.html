@@ -731,9 +731,13 @@ function runVerification() {
   const buttons = document.getElementById('decision-buttons');
   const badge = document.getElementById('verification-badge');
 
-  // Only verify steps that produce verbatims (coding and analysis steps with quotes)
+  // Only verify coding steps — analysis steps use the verified quotes registry
   const step = currentSteps[currentStepIndex];
-  if (step.step_type === 'merge') {
+  if (step.step_type !== 'coding') {
+    if (step.step_type === 'analysis') {
+      badge.innerHTML = '<span class="badge badge-success">Using verified quotes from coding phase</span>';
+      badge.style.display = 'block';
+    }
     buttons.style.display = 'flex';
     return;
   }
@@ -761,6 +765,11 @@ function runVerification() {
         badge.innerHTML = '<span class="badge badge-success">No verbatim quotes to verify</span>';
       } else if (data.stats.unverified_count === 0) {
         badge.innerHTML = `<span class="badge badge-success">${data.stats.verified_count}/${data.stats.total} quotes verified ✓</span>`;
+        // Auto-save all verified quotes to registry
+        fetch('/api/save-verified-quotes', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({verification_data: data, accepted_indices: []})
+        });
       } else {
         badge.innerHTML = `<span class="badge badge-warning">${data.stats.unverified_count} of ${data.stats.total} unverified</span>
           <button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="showVerificationModal()">Review</button>`;
@@ -864,12 +873,15 @@ function updateConfirmButton() {
 }
 
 async function confirmVerification() {
-  // Collect rejected quotes
+  // Collect rejected and accepted quotes
   const rejected = [];
+  const accepted_indices = [];
   if (verificationData) {
     for (const [idx, decision] of Object.entries(quoteDecisions)) {
       if (decision === 'reject') {
         rejected.push(verificationData.unverified[parseInt(idx)].quote);
+      } else if (decision === 'accept') {
+        accepted_indices.push(parseInt(idx));
       }
     }
   }
@@ -888,6 +900,12 @@ async function confirmVerification() {
       ...rejected.map(q => [new RegExp(`"${escapeRegExp(q)}"`, 'g'), '"[quote removed]"']).flat()
     ) || rawResponse);
   }
+
+  // Save verified quotes to registry
+  await fetch('/api/save-verified-quotes', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({verification_data: verificationData, accepted_indices})
+  });
 
   closeVerificationModal();
 }
