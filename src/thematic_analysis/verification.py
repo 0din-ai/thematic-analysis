@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import difflib
 import re
 from collections.abc import Generator
 from dataclasses import dataclass
 from pathlib import Path
+
+from rapidfuzz import fuzz
 
 
 _TRAILING_PUNCT = re.compile(r"[.,;:!?…]+$")
@@ -51,26 +52,38 @@ def extract_quotes(text: str) -> list[str]:
     return quotes
 
 
+def _build_word_index(lines: list[str]) -> tuple[list[str], list[int]]:
+    """Build word list with line number tracking from transcript lines.
+
+    Returns (words, word_line) where word_line[i] is the 1-based line
+    number for words[i].
+    """
+    words: list[str] = []
+    word_line: list[int] = []
+    for line_idx, line in enumerate(lines):
+        for w in line.split():
+            words.append(w)
+            word_line.append(line_idx + 1)
+    return words, word_line
+
+
 def _find_in_transcript(
-    quote: str, transcript_lines: list[str]
+    quote: str,
+    transcript_lines: list[str],
+    full_text: str,
+    lower_text: str,
 ) -> tuple[int, str]:
     """Search for a quote in transcript lines.
 
     Returns (line_number, context) if found, (0, "") if not.
-    Line numbers are 1-based.
+    Line numbers are 1-based.  Accepts precomputed full_text and
+    lower_text to avoid rebuilding them for every quote.
     """
-    full_text = "\n".join(transcript_lines)
-
-    # Exact substring match (case-insensitive), trimming trailing punctuation
-    # from the quote so comma→period changes don't cause mismatches.
-    lower_text = full_text.lower()
     lower_quote = _normalize_quote(quote.lower().strip())
 
     idx = lower_text.find(lower_quote)
     if idx >= 0:
-        # Find line number
         line_num = full_text[:idx].count("\n") + 1
-        # Context: the line containing the match +/- 1 line
         start_line = max(0, line_num - 2)
         end_line = min(len(transcript_lines), line_num + 1)
         context = "\n".join(transcript_lines[start_line:end_line])
@@ -80,67 +93,60 @@ def _find_in_transcript(
 
 
 def _fuzzy_match(
-    quote: str, transcript_lines: list[str], threshold: float = 0.80
+    quote: str,
+    words: list[str],
+    word_line: list[int],
 ) -> tuple[str, float, int]:
     """Find the closest fuzzy match for a quote in the transcript.
 
     Returns (best_match, ratio, line_number).
 
-    Uses a two-pass approach for performance:
-    1. Quick character-overlap pre-filter (very fast) to skip obviously bad windows
-    2. Full SequenceMatcher.ratio() only on candidates that pass the pre-filter
+    Accepts precomputed word/line arrays (from _build_word_index) so they
+    aren't rebuilt for every quote.  Uses rapidfuzz for ~10-100x speed
+    over difflib, plus early termination, stride-2 sliding, and a
+    tighter window range.
     """
+    if not words:
+        return "", 0.0, 0
+
     best_match = ""
     best_ratio = 0.0
     best_line = 0
-
-    # Build word list with line number tracking
-    words: list[str] = []
-    word_line: list[int] = []  # line number (1-based) for each word
-    for line_idx, line in enumerate(transcript_lines):
-        for w in line.split():
-            words.append(w)
-            word_line.append(line_idx + 1)
-
-    if not words:
-        return "", 0.0, 0
 
     quote_lower = _normalize_quote(quote.lower())
     quote_words = quote.split()
     window_size = len(quote_words)
 
-    # Narrower window range to reduce search space
-    min_window = max(3, int(window_size * 0.8))
-    max_window = min(int(window_size * 1.2) + 1, len(words) + 1)
+    # Tighter window range (0.9x–1.1x vs old 0.8x–1.2x)
+    min_window = max(3, int(window_size * 0.9))
+    max_window = min(int(window_size * 1.1) + 1, len(words) + 1)
 
     # Pre-compute quote character set for fast overlap check
     quote_chars = set(quote_lower)
 
+    found_good_enough = False
     for wsize in range(min_window, max_window):
-        for i in range(len(words) - wsize + 1):
+        if found_good_enough:
+            break
+        for i in range(0, len(words) - wsize + 1, 2):
             candidate = " ".join(words[i : i + wsize])
             candidate_lower = _normalize_quote(candidate.lower())
 
-            # Fast pre-filter: check character overlap
-            # If fewer than 60% of quote chars appear in candidate, skip
+            # Fast pre-filter: character overlap
             if len(quote_chars & set(candidate_lower)) < len(quote_chars) * 0.6:
                 continue
 
-            # Use quick_ratio first (upper bound, very fast)
-            sm = difflib.SequenceMatcher(None, quote_lower, candidate_lower)
-            if sm.quick_ratio() < best_ratio:
-                continue
-
-            ratio = sm.ratio()
+            ratio = fuzz.ratio(quote_lower, candidate_lower) / 100.0
             if ratio > best_ratio:
                 best_ratio = ratio
                 best_match = candidate
                 best_line = word_line[i]
 
-    if best_ratio >= threshold:
-        return best_match, best_ratio, best_line
+                if best_ratio >= 0.95:
+                    found_good_enough = True
+                    break
 
-    return "", 0.0, 0
+    return best_match, best_ratio, best_line
 
 
 def verify_verbatims(
@@ -164,21 +170,28 @@ def verify_verbatims_iter(
     if not quotes:
         return
 
-    # Load all transcripts once
-    transcript_data: list[tuple[str, list[str]]] = []
+    # Pre-build all indices once (reused across every quote)
+    transcript_data: list[tuple[str, list[str], str, str, list[str], list[int]]] = []
     for t in transcripts:
         path: Path = t["path"]
         if path.exists():
             lines = path.read_text(encoding="utf-8").splitlines()
-            transcript_data.append((t["participant"], lines))
+            full_text = "\n".join(lines)
+            lower_text = full_text.lower()
+            words, word_line = _build_word_index(lines)
+            transcript_data.append(
+                (t["participant"], lines, full_text, lower_text, words, word_line)
+            )
 
     for quote in quotes:
         found = False
         result = VerbatimResult(quote=quote, found=False)
 
         # Try exact match first (fast)
-        for participant, lines in transcript_data:
-            line_num, context = _find_in_transcript(quote, lines)
+        for participant, lines, full_text, lower_text, _w, _wl in transcript_data:
+            line_num, context = _find_in_transcript(
+                quote, lines, full_text, lower_text
+            )
             if line_num > 0:
                 result = VerbatimResult(
                     quote=quote,
@@ -191,10 +204,10 @@ def verify_verbatims_iter(
                 found = True
                 break
 
-        # If no exact match, try fuzzy (slow)
+        # If no exact match, try fuzzy
         if not found:
-            for participant, lines in transcript_data:
-                match, ratio, line_num = _fuzzy_match(quote, lines)
+            for participant, _lines, _ft, _lt, words, word_line in transcript_data:
+                match, ratio, line_num = _fuzzy_match(quote, words, word_line)
                 if ratio > result.match_ratio:
                     result = VerbatimResult(
                         quote=quote,

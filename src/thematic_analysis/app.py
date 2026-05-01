@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 from flask import Flask, Response, jsonify, render_template, request, send_file
 from openai import OpenAI
 
+import tiktoken
+
 from .analysis import stream_message
 from .config import (
     _save_transcript,
@@ -325,6 +327,124 @@ def status():
     })
 
 
+def _build_step_context(step, steps) -> tuple[list[dict], str]:
+    """Build the full message history and prompt for a step.
+
+    Returns (messages, prompt_content) reflecting what the LLM will
+    actually receive, including any context injection.
+    """
+    output_dir = _state["project_dir"] / "output"
+    messages = _current_messages_for_step(step)
+
+    # First analysis step: inject coding outputs as context seed
+    if step.step_type == "analysis" and not messages:
+        coding_steps = [s for s in steps if s.step_type == "coding"]
+        context_parts = []
+
+        for cs in coding_steps:
+            coding_file = output_dir / cs.filename
+            if coding_file.exists():
+                content = coding_file.read_text(encoding="utf-8")
+                context_parts.append(
+                    f"### Coding: {cs.participant}\n\n{content}"
+                )
+
+        merge_steps = [s for s in steps if s.step_type == "merge"]
+        if merge_steps:
+            merge_file = output_dir / merge_steps[0].filename
+            if merge_file.exists():
+                context_parts.append(
+                    "### Merged Code List\n\n"
+                    + merge_file.read_text(encoding="utf-8")
+                )
+
+        if context_parts:
+            full_context = "\n\n---\n\n".join(context_parts)
+            messages = [{
+                "role": "user",
+                "content": (
+                    "Here are the complete coding outputs from our open "
+                    "coding phase, including all codes and their associated "
+                    "verbatim quotes from each transcript. Use these as the "
+                    "foundation for the following analysis stages.\n\n"
+                    + full_context
+                ),
+            }, {
+                "role": "assistant",
+                "content": (
+                    "I've reviewed the complete coding outputs with all "
+                    "codes and verbatim quotes. I'm ready to proceed "
+                    "with the next stage of analysis."
+                ),
+            }]
+
+    # Themes step: re-inject codes with verified quotes
+    prompt_content = step.prompt
+    if step.file_slug == "develop-themes":
+        coding_steps = [s for s in steps if s.step_type == "coding"]
+        context_parts = []
+        for cs in coding_steps:
+            coding_file = output_dir / cs.filename
+            if coding_file.exists():
+                content = coding_file.read_text(encoding="utf-8")
+                context_parts.append(f"### {cs.participant}\n\n{content}")
+        if context_parts:
+            codes_context = "\n\n---\n\n".join(context_parts)
+            prompt_content = (
+                "Below are the codes with their verified verbatim quotes "
+                "from each transcript. When adding supporting quotes to "
+                "themes, select from these verified quotes \u2014 do not "
+                "paraphrase or create new quotes.\n\n"
+                + codes_context
+                + "\n\n---\n\n"
+                + step.prompt
+            )
+
+    return messages, prompt_content
+
+
+@app.route("/api/step-prompt")
+def step_prompt():
+    """Return the prompt text for a given step (or the current step)."""
+    if _state["steps"] is None:
+        return jsonify({"error": "No analysis active"}), 400
+
+    idx = request.args.get("index", _state["step_index"], type=int)
+    if idx < 0 or idx >= len(_state["steps"]):
+        return jsonify({"error": "Invalid step index"}), 400
+
+    step = _state["steps"][idx]
+    if step.step_type == "merge":
+        prompt = (
+            "This step merges code lists programmatically — no AI prompt "
+            "is used. Duplicate codes across transcripts are combined "
+            "automatically."
+        )
+    else:
+        _messages, prompt = _build_step_context(step, _state["steps"])
+
+    return jsonify({
+        "prompt": prompt,
+        "step_type": step.step_type,
+        "title": step.title,
+    })
+
+
+@app.route("/api/step-history")
+def step_history():
+    """Return the conversation history for a given step."""
+    if _state["steps"] is None:
+        return jsonify({"error": "No analysis active"}), 400
+
+    idx = request.args.get("index", _state["step_index"], type=int)
+    if idx < 0 or idx >= len(_state["steps"]):
+        return jsonify({"error": "Invalid step index"}), 400
+
+    step = _state["steps"][idx]
+    messages, _prompt = _build_step_context(step, _state["steps"])
+    return jsonify({"messages": messages})
+
+
 @app.route("/api/stream")
 def stream():
     """SSE endpoint — stream the current step's AI response.
@@ -370,61 +490,26 @@ def stream():
         )
 
     # --- LLM step: coding or analysis ---
-    messages = _current_messages_for_step(step)
+    messages, prompt_content = _build_step_context(step, steps)
 
-    # For analysis steps: inject full coding outputs as context
-    # on the first analysis message so stages 2-7 have access to
-    # all codes AND their associated verbatim quotes.
-    if step.step_type == "analysis" and not messages:
-        coding_steps = [s for s in steps if s.step_type == "coding"]
-        context_parts = []
+    # Persist the context seed for the first analysis step
+    if step.step_type == "analysis" and not _current_messages_for_step(step):
+        _save_messages_for_step(step, messages)
 
-        # Include each transcript's full coding output
-        for cs in coding_steps:
-            coding_file = output_dir / cs.filename
-            if coding_file.exists():
-                content = coding_file.read_text(encoding="utf-8")
-                context_parts.append(
-                    f"### Coding: {cs.participant}\n\n{content}"
-                )
-
-        # Also include the merged code list if it exists
-        merge_steps = [s for s in steps if s.step_type == "merge"]
-        if merge_steps:
-            merge_file = output_dir / merge_steps[0].filename
-            if merge_file.exists():
-                context_parts.append(
-                    "### Merged Code List\n\n"
-                    + merge_file.read_text(encoding="utf-8")
-                )
-
-        if context_parts:
-            full_context = "\n\n---\n\n".join(context_parts)
-            messages = [{
-                "role": "user",
-                "content": (
-                    "Here are the complete coding outputs from our open "
-                    "coding phase, including all codes and their associated "
-                    "verbatim quotes from each transcript. Use these as the "
-                    "foundation for the following analysis stages.\n\n"
-                    + full_context
-                ),
-            }, {
-                "role": "assistant",
-                "content": (
-                    "I've reviewed the complete coding outputs with all "
-                    "codes and verbatim quotes. I'm ready to proceed "
-                    "with the next stage of analysis."
-                ),
-            }]
-            _save_messages_for_step(step, messages)
-
-    user_msg = {"role": "user", "content": step.prompt}
+    user_msg = {"role": "user", "content": prompt_content}
     current_messages = messages + [user_msg]
+
+    # Count tokens in the context being sent to the LLM
+    try:
+        enc = tiktoken.encoding_for_model(config.model)
+    except KeyError:
+        enc = tiktoken.get_encoding("cl100k_base")
+    token_count = sum(len(enc.encode(m["content"])) for m in current_messages)
 
     def generate():
         _state["streaming"] = True
         full_response = ""
+        yield f"data: {json.dumps({'token_count': token_count})}\n\n"
         try:
             for chunk in stream_message(
                 client, current_messages, config.model, config.reasoning_effort

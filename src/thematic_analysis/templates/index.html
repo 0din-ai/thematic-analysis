@@ -73,6 +73,16 @@
     color: var(--text-dim); margin: 8px 0; }
   .response-area code { background: #e5e7eb; padding: 2px 5px; border-radius: 3px; font-size: 13px; }
 
+  /* Prompt viewer */
+  .prompt-area { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px;
+    padding: 20px; max-height: 40vh; overflow-y: auto; font-size: 13px; line-height: 1.6;
+    margin-bottom: 16px; }
+  .prompt-area h1,.prompt-area h2,.prompt-area h3 { margin-top: 12px; margin-bottom: 6px; font-size: 14px; }
+  .prompt-area ul,.prompt-area ol { padding-left: 20px; margin-bottom: 6px; }
+  .prompt-area p { margin-bottom: 6px; }
+  .prompt-label { font-size: 11px; font-weight: 600; color: var(--warning); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 8px; }
+
   /* Loading indicator */
   .loading-indicator { display: flex; align-items: center; gap: 10px; padding: 16px;
     color: var(--text-dim); font-size: 14px; }
@@ -245,13 +255,36 @@
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h2 id="step-title">Loading...</h2>
-        <span id="step-counter" style="color:var(--text-dim); font-size:14px;"></span>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <button class="btn btn-ghost btn-sm" id="btn-toggle-prompt" onclick="togglePrompt()">View Prompt</button>
+          <button class="btn btn-ghost btn-sm" id="btn-toggle-history" onclick="toggleHistory()">View Conversation History</button>
+          <span id="token-count" style="color:var(--text-dim); font-size:13px; font-family:monospace; display:none;"></span>
+          <span id="step-counter" style="color:var(--text-dim); font-size:14px;"></span>
+        </div>
+      </div>
+
+      <!-- Collapsible prompt viewer -->
+      <div id="prompt-viewer" style="display:none;">
+        <div class="prompt-label">Prompt sent to AI</div>
+        <div class="prompt-area" id="prompt-content"></div>
+      </div>
+
+      <!-- Collapsible history viewer -->
+      <div id="history-viewer" style="display:none;">
+        <div class="prompt-label">Conversation history</div>
+        <div class="prompt-area" id="history-content" style="max-height:400px; overflow-y:auto;"></div>
+      </div>
+
+      <!-- Start button (shown before streaming begins) -->
+      <div id="start-step" style="display:none; margin-bottom:16px;">
+        <button class="btn btn-success" onclick="startStreaming()">Start</button>
       </div>
 
       <!-- Loading indicator -->
       <div id="loading-indicator" class="loading-indicator" style="display:none;">
         <div class="spinner"></div>
         <span>Generating response... <span id="elapsed-time">0:00</span></span>
+        <button class="btn btn-ghost btn-sm" style="margin-left:12px;" onclick="cancelStreaming()">Cancel</button>
       </div>
 
       <div class="response-area" id="response-area">
@@ -322,6 +355,9 @@ let pendingTranscripts = []; // [{participant, text}]
 let elapsedTimer = null;
 let elapsedSeconds = 0;
 let verificationPending = false;
+let promptVisible = false;
+let historyVisible = false;
+let currentSource = null; // EventSource for cancel support
 
 // --- Views ---
 function showView(id) {
@@ -483,7 +519,7 @@ async function startAnalysis() {
   renderProgress();
   refreshOutputs();
   if (currentStepIndex >= currentSteps.length) showComplete();
-  else startStreaming();
+  else showStartButton();
 }
 
 // --- Progress ---
@@ -515,6 +551,67 @@ function renderProgress() {
   }
 }
 
+// --- Prompt viewer ---
+async function togglePrompt() {
+  const viewer = document.getElementById('prompt-viewer');
+  const btn = document.getElementById('btn-toggle-prompt');
+  if (promptVisible) {
+    viewer.style.display = 'none';
+    btn.textContent = 'View Prompt';
+    promptVisible = false;
+    return;
+  }
+  const resp = await fetch(`/api/step-prompt?index=${currentStepIndex}`);
+  const data = await resp.json();
+  if (data.error) return;
+  document.getElementById('prompt-content').innerHTML = marked.parse(data.prompt);
+  viewer.style.display = 'block';
+  btn.textContent = 'Hide Prompt';
+  promptVisible = true;
+}
+
+function hidePrompt() {
+  document.getElementById('prompt-viewer').style.display = 'none';
+  document.getElementById('btn-toggle-prompt').textContent = 'View Prompt';
+  promptVisible = false;
+}
+
+async function toggleHistory() {
+  const viewer = document.getElementById('history-viewer');
+  const btn = document.getElementById('btn-toggle-history');
+  if (historyVisible) {
+    viewer.style.display = 'none';
+    btn.textContent = 'View Conversation History';
+    historyVisible = false;
+    return;
+  }
+  const resp = await fetch(`/api/step-history?index=${currentStepIndex}`);
+  const data = await resp.json();
+  if (data.error) return;
+  const msgs = data.messages;
+  if (!msgs.length) {
+    document.getElementById('history-content').innerHTML = '<p style="color:var(--text-dim);">No conversation history yet (this is the first step in this phase).</p>';
+  } else {
+    let html = '';
+    for (const m of msgs) {
+      const label = m.role === 'user' ? 'User' : 'Assistant';
+      const color = m.role === 'user' ? 'var(--primary)' : 'var(--success)';
+      html += `<div style="margin-bottom:12px;"><div style="font-size:11px; font-weight:600; color:${color}; text-transform:uppercase; margin-bottom:4px;">${label}</div>`;
+      html += `<div>${marked.parse(m.content)}</div></div>`;
+    }
+    document.getElementById('history-content').innerHTML = html;
+  }
+  viewer.style.display = 'block';
+  btn.textContent = 'Hide History';
+  historyVisible = true;
+}
+
+function hideHistory() {
+  document.getElementById('history-viewer').style.display = 'none';
+  document.getElementById('btn-toggle-history').textContent = 'View Conversation History';
+  historyVisible = false;
+}
+
 // --- Elapsed timer ---
 function startTimer() {
   elapsedSeconds = 0;
@@ -533,12 +630,38 @@ function stopTimer() {
 }
 
 // --- Streaming ---
+function showStartButton() {
+  const area = document.getElementById('response-area');
+  const step = currentSteps[currentStepIndex];
+  const title = step ? step.title : '';
+  area.innerHTML = `<div class="status-msg">Ready to run: ${title}</div>`;
+  document.getElementById('start-step').style.display = 'block';
+  document.getElementById('decision-buttons').style.display = 'none';
+  document.getElementById('step-title').textContent = title;
+  document.getElementById('step-counter').textContent = `Step ${currentStepIndex + 1} of ${currentSteps.length}`;
+  document.getElementById('token-count').style.display = 'none';
+}
+
+function cancelStreaming() {
+  if (currentSource) { currentSource.close(); currentSource = null; }
+  isStreaming = false;
+  stopTimer();
+  const area = document.getElementById('response-area');
+  if (rawResponse) {
+    area.innerHTML = marked.parse(rawResponse + '\n\n---\n*Generation cancelled.*');
+  } else {
+    area.innerHTML = '<div class="status-msg">Generation cancelled.</div>';
+  }
+  document.getElementById('decision-buttons').style.display = 'flex';
+}
+
 function startStreaming() {
   const area = document.getElementById('response-area');
   const buttons = document.getElementById('decision-buttons');
   const errEl = document.getElementById('analysis-error');
   const badge = document.getElementById('verification-badge');
 
+  document.getElementById('start-step').style.display = 'none';
   area.innerHTML = '';
   buttons.style.display = 'none';
   errEl.style.display = 'none';
@@ -546,29 +669,42 @@ function startStreaming() {
   rawResponse = '';
   isStreaming = true;
   verificationPending = false;
+  verificationData = null;
+  quoteDecisions = {};
+  document.getElementById('verification-results').innerHTML = '';
+  document.getElementById('verification-modal').style.display = 'none';
+  hidePrompt();
+  hideHistory();
 
   startTimer();
 
   const source = new EventSource('/api/stream');
+  currentSource = source;
   let firstChunk = true;
 
   source.onmessage = function(event) {
     const data = JSON.parse(event.data);
 
     if (data.error) {
-      source.close(); isStreaming = false; stopTimer();
+      source.close(); currentSource = null; isStreaming = false; stopTimer();
       errEl.textContent = 'Error: ' + data.error; errEl.style.display = 'block';
       buttons.style.display = 'flex';
       return;
     }
 
     if (data.done) {
-      source.close(); isStreaming = false; stopTimer();
+      source.close(); currentSource = null; isStreaming = false; stopTimer();
       area.innerHTML = marked.parse(rawResponse);
       area.scrollTop = area.scrollHeight;
       // Run verification then show buttons
       runVerification();
       return;
+    }
+
+    if (data.token_count != null) {
+      const tc = document.getElementById('token-count');
+      tc.textContent = data.token_count.toLocaleString() + ' tokens';
+      tc.style.display = 'inline';
     }
 
     if (data.chunk) {
@@ -580,7 +716,7 @@ function startStreaming() {
   };
 
   source.onerror = function() {
-    source.close();
+    source.close(); currentSource = null;
     if (isStreaming) {
       isStreaming = false; stopTimer();
       errEl.textContent = 'Connection lost.'; errEl.style.display = 'block';
@@ -791,7 +927,7 @@ async function sendDecision(action) {
     currentStepIndex = data.step_index;
     renderProgress(); refreshOutputs();
     if (data.complete) showComplete();
-    else startStreaming();
+    else showStartButton();
   } else if (action === 'quit') showSetup();
 }
 
