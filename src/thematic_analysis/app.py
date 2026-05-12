@@ -126,6 +126,18 @@ def check_key():
     return jsonify({"has_key": bool(key)})
 
 
+@app.route("/api/get-key")
+def get_key():
+    key = _get_api_key()
+    if not key:
+        return jsonify({"has_key": False, "masked_key": ""})
+    if len(key) > 12:
+        masked = key[:7] + "..." + key[-4:]
+    else:
+        masked = key[:3] + "..."
+    return jsonify({"has_key": True, "masked_key": masked})
+
+
 @app.route("/api/save-key", methods=["POST"])
 def save_key():
     data = request.json

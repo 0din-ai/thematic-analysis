@@ -86,10 +86,54 @@ participant = "Alice"
 
 ## Dependencies
 
-flask, openai, rich, python-dotenv (+ tomllib from stdlib). No torch/transformers.
+flask, openai, rich, python-dotenv, rapidfuzz, tiktoken (+ tomllib from stdlib). No torch/transformers.
+
+## Building for Distribution
+
+Produces a macOS `.app` bundle (arm64) that non-technical users can double-click to launch.
+
+### Build
+
+```bash
+bash scripts/build-macos.sh
+```
+
+This runs four steps: installs deps (including PyInstaller), pre-downloads tiktoken encoding data, runs PyInstaller, and verifies the bundle. Output: `dist/Thematic Analysis.app` (~48MB).
+
+### Build files
+
+| File | Purpose |
+|------|---------|
+| `thematic-analysis.spec` | PyInstaller spec — data files, hidden imports, `.app` BUNDLE config |
+| `scripts/pyinstaller_entry.py` | Entry point — sets `TIKTOKEN_CACHE_DIR`, calls `main()` |
+| `scripts/download_tiktoken_data.py` | Build-time helper — pre-downloads tiktoken BPE encodings to `build/tiktoken_cache/` |
+| `scripts/build-macos.sh` | One-command build script |
+
+### Frozen-mode path resolution
+
+Both `app.py` and `config.py` use `getattr(sys, "frozen", False)` to detect PyInstaller bundles:
+- Templates: `sys._MEIPASS / "thematic_analysis" / "templates"` (in `app.py:_get_template_folder()`)
+- Default prompts: `sys._MEIPASS / "prompts" / "default-prompts.md"` (in `config.py:_default_prompts_path()`)
+- Base dir for projects: `~/.thematic-analysis/` (in `app.py:_base_dir()`)
+
+### Distributing to coworkers
+
+1. Zip the app:
+   ```bash
+   cd dist
+   zip -r "Thematic-Analysis-0.1.0-mac-arm64.zip" "Thematic Analysis.app"
+   ```
+2. Share the zip via Slack, Google Drive, etc.
+3. Recipients: unzip, optionally drag to `/Applications`, then **right-click > Open** on first launch (required because the app is unsigned — Gatekeeper blocks unsigned apps on double-click, but right-click > Open bypasses this once).
+
+### Limitations
+
+- **Unsigned** — first launch requires right-click > Open. Code signing + notarization needs an Apple Developer account ($99/year).
+- **arm64 only** — Intel Macs need a separate build on x86_64 hardware.
+- **No auto-update** — ship a new zip for each version.
 
 ## What's Not Built Yet
 
-1. **PyInstaller desktop packaging** — `.app` bundle so users double-click to launch
-2. **Google OAuth** — deferred until after acceptance testing
+1. **Google OAuth** — deferred until after acceptance testing
+2. **Code signing / notarization** — requires Apple Developer account
 3. **No git commits yet** — repo was initialized but nothing committed

@@ -47,6 +47,8 @@ class AnalysisConfig:
 
 def _default_prompts_path() -> Path:
     """Return the path to the bundled default-prompts.md."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "prompts" / "default-prompts.md"
     return Path(__file__).parent.parent.parent / "prompts" / "default-prompts.md"
 
 

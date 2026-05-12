@@ -157,6 +157,14 @@
   .view { display: none; }
   .view.active { display: block; }
 
+  .header { position: relative; }
+  .settings-link { position: absolute; top: 8px; right: 0; color: var(--text-dim);
+    font-size: 14px; text-decoration: none; }
+  .settings-link:hover { color: var(--primary); }
+  .settings-key { font-family: monospace; font-size: 15px; color: var(--text);
+    padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; display: inline-block; }
+
   .status-msg { text-align: center; padding: 40px; color: var(--text-dim); }
   .error-msg { background: #fef2f2; border: 1px solid #fecaca; color: var(--danger);
     padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; }
@@ -173,6 +181,7 @@
   <div class="header">
     <h1>Thematic Analysis</h1>
     <p>AI-powered analysis for customer interview transcripts</p>
+    <a href="#" class="settings-link" onclick="showSettings(); return false;">Settings</a>
   </div>
 
   <!-- API Key Setup -->
@@ -184,9 +193,43 @@
         <a href="https://platform.openai.com/api-keys" target="_blank">Get one here</a>.
       </p>
       <label for="api-key">API Key</label>
-      <input type="text" id="api-key" class="key-input" placeholder="sk-..." />
+      <input type="text" id="api-key" class="key-input" placeholder="Paste your API key here" />
       <div id="key-error" class="error-msg" style="display:none;"></div>
       <button class="btn btn-primary" onclick="saveApiKey()">Save & Continue</button>
+    </div>
+  </div>
+
+  <!-- Settings View -->
+  <div id="view-settings" class="view">
+    <div class="card">
+      <h2>Settings</h2>
+
+      <h3 style="margin-top:16px;">OpenAI API Key</h3>
+      <div id="settings-key-display" style="margin-top:8px;">
+        <span class="settings-key" id="settings-masked-key">Loading...</span>
+      </div>
+
+      <div id="settings-key-form" style="display:none; margin-top:12px;">
+        <label for="settings-api-key">New API Key</label>
+        <input type="text" id="settings-api-key" class="key-input" placeholder="Paste your API key here" />
+        <div id="settings-key-error" class="error-msg" style="display:none;"></div>
+        <div class="btn-group" style="margin-top:0;">
+          <button class="btn btn-primary btn-sm" onclick="saveSettingsKey()">Save Key</button>
+          <button class="btn btn-ghost btn-sm" onclick="cancelKeyChange()">Cancel</button>
+        </div>
+      </div>
+
+      <div id="settings-key-actions" style="margin-top:12px;">
+        <button class="btn btn-ghost btn-sm" onclick="showKeyChangeForm()">Change Key</button>
+      </div>
+
+      <div id="settings-key-success" class="success-msg" style="display:none; margin-top:12px;">
+        API key updated successfully.
+      </div>
+    </div>
+
+    <div style="margin-top:16px;">
+      <button class="btn btn-ghost" onclick="showSetup()">Back to Dashboard</button>
     </div>
   </div>
 
@@ -416,6 +459,51 @@ async function saveApiKey() {
   const data = await resp.json();
   if (data.ok) showSetup();
   else { err.textContent = data.error; err.style.display = 'block'; }
+}
+
+// --- Settings ---
+async function showSettings() {
+  showView('view-settings');
+  const resp = await fetch('/api/get-key');
+  const data = await resp.json();
+  const display = document.getElementById('settings-masked-key');
+  display.textContent = data.has_key ? data.masked_key : 'Not configured';
+  document.getElementById('settings-key-form').style.display = 'none';
+  document.getElementById('settings-key-actions').style.display = 'block';
+  document.getElementById('settings-key-success').style.display = 'none';
+}
+
+function showKeyChangeForm() {
+  document.getElementById('settings-key-form').style.display = 'block';
+  document.getElementById('settings-key-actions').style.display = 'none';
+  document.getElementById('settings-key-success').style.display = 'none';
+  document.getElementById('settings-api-key').value = '';
+  document.getElementById('settings-key-error').style.display = 'none';
+}
+
+function cancelKeyChange() {
+  document.getElementById('settings-key-form').style.display = 'none';
+  document.getElementById('settings-key-actions').style.display = 'block';
+}
+
+async function saveSettingsKey() {
+  const key = document.getElementById('settings-api-key').value.trim();
+  const err = document.getElementById('settings-key-error');
+  if (!key) { err.textContent = 'Please enter an API key.'; err.style.display = 'block'; return; }
+  err.style.display = 'none';
+  const resp = await fetch('/api/save-key', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
+  const data = await resp.json();
+  if (data.ok) {
+    document.getElementById('settings-key-form').style.display = 'none';
+    document.getElementById('settings-key-actions').style.display = 'block';
+    document.getElementById('settings-key-success').style.display = 'block';
+    // Update the displayed masked key
+    const keyResp = await fetch('/api/get-key');
+    const keyData = await keyResp.json();
+    document.getElementById('settings-masked-key').textContent = keyData.masked_key;
+  } else {
+    err.textContent = data.error; err.style.display = 'block';
+  }
 }
 
 // --- Projects ---

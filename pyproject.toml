@@ -16,6 +16,9 @@ dependencies = [
 [project.scripts]
 thematic-analysis = "thematic_analysis.app:main"
 
+[project.optional-dependencies]
+build = ["pyinstaller>=6.0"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
