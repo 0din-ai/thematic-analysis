@@ -158,9 +158,10 @@
   .view.active { display: block; }
 
   .header { position: relative; }
-  .settings-link { position: absolute; top: 8px; right: 0; color: var(--text-dim);
-    font-size: 14px; text-decoration: none; }
-  .settings-link:hover { color: var(--primary); }
+  .header-links { position: absolute; top: 8px; right: 0; display: flex; gap: 16px; }
+  .header-links a { color: var(--text-dim); font-size: 14px; text-decoration: none; }
+  .header-links a:hover { color: var(--primary); }
+  .header-links .quit-link:hover { color: var(--danger); }
   .settings-key { font-family: monospace; font-size: 15px; color: var(--text);
     padding: 10px 14px; background: var(--bg); border: 1px solid var(--border);
     border-radius: 6px; display: inline-block; }
@@ -181,7 +182,10 @@
   <div class="header">
     <h1>Thematic Analysis</h1>
     <p>AI-powered analysis for customer interview transcripts</p>
-    <a href="#" class="settings-link" onclick="showSettings(); return false;">Settings</a>
+    <div class="header-links">
+      <a href="#" onclick="showSettings(); return false;">Settings</a>
+      <a href="#" class="quit-link" onclick="quitApp(); return false;">Quit</a>
+    </div>
   </div>
 
   <!-- API Key Setup -->
@@ -226,6 +230,12 @@
       <div id="settings-key-success" class="success-msg" style="display:none; margin-top:12px;">
         API key updated successfully.
       </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <h3>Application</h3>
+      <p style="margin:8px 0; color: var(--muted);">Stop the server and close the application.</p>
+      <button class="btn btn-danger btn-sm" onclick="quitApp()">Quit Application</button>
     </div>
 
     <div style="margin-top:16px;">
@@ -504,6 +514,15 @@ async function saveSettingsKey() {
   } else {
     err.textContent = data.error; err.style.display = 'block';
   }
+}
+
+// --- Quit ---
+async function quitApp() {
+  if (!confirm('Quit the application? The server will stop and this page will no longer work.')) return;
+  try {
+    await fetch('/api/shutdown', {method:'POST'});
+  } catch(e) { /* server is shutting down, connection may drop */ }
+  document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;"><div style="text-align:center;"><h2>Application stopped</h2><p style="color:var(--muted);margin-top:8px;">You can close this tab.</p></div></div>';
 }
 
 // --- Projects ---
