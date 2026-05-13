@@ -197,7 +197,7 @@
         <a href="https://platform.openai.com/api-keys" target="_blank">Get one here</a>.
       </p>
       <label for="api-key">API Key</label>
-      <input type="text" id="api-key" class="key-input" placeholder="Paste your API key here" />
+      <input type="password" id="api-key" class="key-input" placeholder="Paste your API key here" />
       <div id="key-error" class="error-msg" style="display:none;"></div>
       <button class="btn btn-primary" onclick="saveApiKey()">Save & Continue</button>
     </div>
@@ -215,7 +215,7 @@
 
       <div id="settings-key-form" style="display:none; margin-top:12px;">
         <label for="settings-api-key">New API Key</label>
-        <input type="text" id="settings-api-key" class="key-input" placeholder="Paste your API key here" />
+        <input type="password" id="settings-api-key" class="key-input" placeholder="Paste your API key here" />
         <div id="settings-key-error" class="error-msg" style="display:none;"></div>
         <div class="btn-group" style="margin-top:0;">
           <button class="btn btn-primary btn-sm" onclick="saveSettingsKey()">Save Key</button>
@@ -280,6 +280,7 @@
             <option value="gpt-5.4" selected>GPT-5.4</option>
             <option value="gpt-5.5">GPT-5.5</option>
           </select>
+          <div class="hint">Newer models produce better analysis but cost more per run.</div>
         </div>
         <div>
           <label for="reasoning-effort">Reasoning Effort</label>
@@ -290,6 +291,7 @@
             <option value="high" selected>High</option>
             <option value="xhigh">Extra High</option>
           </select>
+          <div class="hint">Higher effort means deeper analysis but slower and more expensive. "High" is recommended.</div>
         </div>
       </div>
       <div id="setup-error" class="error-msg" style="display:none;"></div>
@@ -336,7 +338,10 @@
 
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-        <h2 id="step-title">Loading...</h2>
+        <div>
+          <div id="project-name-display" style="font-size:12px; color:var(--text-dim); margin-bottom:2px;"></div>
+          <h2 id="step-title">Loading...</h2>
+        </div>
         <div style="display:flex; align-items:center; gap:12px;">
           <button class="btn btn-ghost btn-sm" id="btn-toggle-prompt" onclick="togglePrompt()">View Prompt</button>
           <button class="btn btn-ghost btn-sm" id="btn-toggle-history" onclick="toggleHistory()">View Conversation History</button>
@@ -371,6 +376,12 @@
 
       <div class="response-area" id="response-area">
         <div class="status-msg">Preparing to start analysis...</div>
+      </div>
+
+      <!-- Inline streaming status (stays visible while streaming) -->
+      <div id="streaming-status" style="display:none; padding:8px 0; font-size:13px; color:var(--text-dim); align-items:center; gap:10px;">
+        <span>Streaming... <span id="stream-elapsed">0:00</span></span>
+        <button class="btn btn-ghost btn-sm" onclick="cancelStreaming()">Cancel</button>
       </div>
 
       <!-- Verification badge -->
@@ -412,7 +423,10 @@
   <!-- Verification Modal -->
   <div id="verification-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeVerificationModal()">
     <div class="modal">
-      <h2>Verbatim Verification</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>Verbatim Verification</h2>
+        <button class="btn btn-ghost btn-sm" onclick="closeVerificationModal()" aria-label="Close" style="font-size:18px; padding:4px 10px;">&#215;</button>
+      </div>
       <p style="margin-bottom:16px; color: var(--text-dim);">
         The following quotes could not be exactly matched in the transcripts.
         For each quote, choose to <strong>accept</strong> it (keep in output) or
@@ -434,6 +448,7 @@ marked.setOptions({ breaks: true, gfm: true });
 let currentSteps = [];
 let currentStepIndex = 0;
 let projectDir = '';
+let projectName = '';
 let isStreaming = false;
 let rawResponse = '';
 let pendingTranscripts = []; // [{participant, text}]
@@ -444,6 +459,21 @@ let promptVisible = false;
 let historyVisible = false;
 let currentSource = null; // EventSource for cancel support
 
+// Warn before closing tab during active analysis
+window.addEventListener('beforeunload', function(e) {
+  if (isStreaming) {
+    e.preventDefault();
+    return '';
+  }
+});
+
+// Escape key closes the verification modal
+window.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('verification-modal').style.display !== 'none') {
+    closeVerificationModal();
+  }
+});
+
 // --- Views ---
 function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -453,10 +483,14 @@ function showSetup() { loadProjects(); showView('view-setup'); }
 
 // --- Init ---
 async function init() {
-  const resp = await fetch('/api/check-key');
-  const data = await resp.json();
-  if (!data.has_key) showView('view-apikey');
-  else showSetup();
+  try {
+    const resp = await fetch('/api/check-key');
+    const data = await resp.json();
+    if (!data.has_key) showView('view-apikey');
+    else showSetup();
+  } catch(e) {
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;"><div style="text-align:center;"><h2>Cannot connect to server</h2><p style="color:#6b7280;margin-top:8px;">Please make sure the application is running and refresh this page.</p></div></div>';
+  }
 }
 
 // --- API Key ---
@@ -465,22 +499,26 @@ async function saveApiKey() {
   const err = document.getElementById('key-error');
   if (!key) { err.textContent = 'Please enter your API key.'; err.style.display = 'block'; return; }
   err.style.display = 'none';
-  const resp = await fetch('/api/save-key', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
-  const data = await resp.json();
-  if (data.ok) showSetup();
-  else { err.textContent = data.error; err.style.display = 'block'; }
+  try {
+    const resp = await fetch('/api/save-key', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
+    const data = await resp.json();
+    if (data.ok) showSetup();
+    else { err.textContent = data.error; err.style.display = 'block'; }
+  } catch(e) { err.textContent = 'Could not connect to the server. Please try again.'; err.style.display = 'block'; }
 }
 
 // --- Settings ---
 async function showSettings() {
   showView('view-settings');
-  const resp = await fetch('/api/get-key');
-  const data = await resp.json();
   const display = document.getElementById('settings-masked-key');
-  display.textContent = data.has_key ? data.masked_key : 'Not configured';
   document.getElementById('settings-key-form').style.display = 'none';
   document.getElementById('settings-key-actions').style.display = 'block';
   document.getElementById('settings-key-success').style.display = 'none';
+  try {
+    const resp = await fetch('/api/get-key');
+    const data = await resp.json();
+    display.textContent = data.has_key ? data.masked_key : 'Not configured';
+  } catch(e) { display.textContent = 'Unable to load'; }
 }
 
 function showKeyChangeForm() {
@@ -501,19 +539,20 @@ async function saveSettingsKey() {
   const err = document.getElementById('settings-key-error');
   if (!key) { err.textContent = 'Please enter an API key.'; err.style.display = 'block'; return; }
   err.style.display = 'none';
-  const resp = await fetch('/api/save-key', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
-  const data = await resp.json();
-  if (data.ok) {
-    document.getElementById('settings-key-form').style.display = 'none';
-    document.getElementById('settings-key-actions').style.display = 'block';
-    document.getElementById('settings-key-success').style.display = 'block';
-    // Update the displayed masked key
-    const keyResp = await fetch('/api/get-key');
-    const keyData = await keyResp.json();
-    document.getElementById('settings-masked-key').textContent = keyData.masked_key;
-  } else {
-    err.textContent = data.error; err.style.display = 'block';
-  }
+  try {
+    const resp = await fetch('/api/save-key', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
+    const data = await resp.json();
+    if (data.ok) {
+      document.getElementById('settings-key-form').style.display = 'none';
+      document.getElementById('settings-key-actions').style.display = 'block';
+      document.getElementById('settings-key-success').style.display = 'block';
+      const keyResp = await fetch('/api/get-key');
+      const keyData = await keyResp.json();
+      document.getElementById('settings-masked-key').textContent = keyData.masked_key;
+    } else {
+      err.textContent = data.error; err.style.display = 'block';
+    }
+  } catch(e) { err.textContent = 'Could not connect to the server. Please try again.'; err.style.display = 'block'; }
 }
 
 // --- Quit ---
@@ -527,20 +566,22 @@ async function quitApp() {
 
 // --- Projects ---
 async function loadProjects() {
-  const resp = await fetch('/api/projects');
-  const projects = await resp.json();
   const container = document.getElementById('existing-projects');
   const list = document.getElementById('project-list');
   list.innerHTML = '';
-  if (projects.length === 0) { container.style.display = 'none'; return; }
-  container.style.display = 'block';
-  projects.forEach(p => {
-    const li = document.createElement('li');
-    li.innerHTML = `<span><strong>${p.name}</strong></span>
-      <span class="project-progress">${p.completed}/${p.total} stages</span>`;
-    li.onclick = () => resumeProject(p.path);
-    list.appendChild(li);
-  });
+  try {
+    const resp = await fetch('/api/projects');
+    const projects = await resp.json();
+    if (projects.length === 0) { container.style.display = 'none'; return; }
+    container.style.display = 'block';
+    projects.forEach(p => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span><strong>${escapeHtml(p.name)}</strong></span>
+        <span class="project-progress">${p.completed}/${p.total} stages</span>`;
+      li.onclick = () => resumeProject(p.path);
+      list.appendChild(li);
+    });
+  } catch(e) { container.style.display = 'none'; }
 }
 
 // --- Transcript management ---
@@ -584,7 +625,7 @@ function renderTranscriptList() {
     const lines = t.text.split('\n').length;
     const div = document.createElement('div');
     div.className = 'transcript-item';
-    div.innerHTML = `<div><span class="name">${t.participant}</span><br>
+    div.innerHTML = `<div><span class="name">${escapeHtml(t.participant)}</span><br>
       <span class="meta">${lines} lines</span></div>
       <button class="btn btn-ghost btn-sm" onclick="removeTranscript(${i})">Remove</button>`;
     container.appendChild(div);
@@ -634,31 +675,38 @@ async function createAndStart() {
     transcripts: pendingTranscripts,
   };
 
-  const resp = await fetch('/api/setup', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-  const data = await resp.json();
-  if (data.error) { err.textContent = data.error; err.style.display = 'block'; return; }
-
-  projectDir = data.project_dir;
-  await startAnalysis();
+  try {
+    const resp = await fetch('/api/setup', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const data = await resp.json();
+    if (data.error) { err.textContent = data.error; err.style.display = 'block'; return; }
+    projectDir = data.project_dir;
+    projectName = document.getElementById('project-name').value.trim();
+    await startAnalysis();
+  } catch(e) { err.textContent = 'Could not connect to the server. Please try again.'; err.style.display = 'block'; }
 }
 
-async function resumeProject(dir) { projectDir = dir; await startAnalysis(); }
+async function resumeProject(dir) { projectDir = dir; projectName = dir.split('/').pop(); await startAnalysis(); }
 
 async function startAnalysis() {
-  const resp = await fetch('/api/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({project_dir: projectDir})});
-  const data = await resp.json();
-  if (data.error) {
+  try {
+    const resp = await fetch('/api/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({project_dir: projectDir})});
+    const data = await resp.json();
+    if (data.error) {
+      const err = document.getElementById('setup-error') || document.getElementById('transcripts-error');
+      if (err) { err.textContent = data.error; err.style.display = 'block'; }
+      return;
+    }
+    currentSteps = data.steps;
+    currentStepIndex = data.current_step;
+    showView('view-analysis');
+    renderProgress();
+    refreshOutputs();
+    if (currentStepIndex >= currentSteps.length) showComplete();
+    else showStartButton();
+  } catch(e) {
     const err = document.getElementById('setup-error') || document.getElementById('transcripts-error');
-    if (err) { err.textContent = data.error; err.style.display = 'block'; }
-    return;
+    if (err) { err.textContent = 'Could not connect to the server. Please try again.'; err.style.display = 'block'; }
   }
-  currentSteps = data.steps;
-  currentStepIndex = data.current_step;
-  showView('view-analysis');
-  renderProgress();
-  refreshOutputs();
-  if (currentStepIndex >= currentSteps.length) showComplete();
-  else showStartButton();
 }
 
 // --- Progress ---
@@ -666,6 +714,8 @@ function renderProgress() {
   const bar = document.getElementById('progress-bar');
   const labels = document.getElementById('step-labels');
   bar.innerHTML = ''; labels.innerHTML = '';
+  const pnDisplay = document.getElementById('project-name-display');
+  if (pnDisplay && projectName) pnDisplay.textContent = projectName;
 
   currentSteps.forEach((s, i) => {
     const div = document.createElement('div');
@@ -755,17 +805,22 @@ function hideHistory() {
 function startTimer() {
   elapsedSeconds = 0;
   document.getElementById('elapsed-time').textContent = '0:00';
+  document.getElementById('stream-elapsed').textContent = '0:00';
   document.getElementById('loading-indicator').style.display = 'flex';
+  document.getElementById('streaming-status').style.display = 'none';
   elapsedTimer = setInterval(() => {
     elapsedSeconds++;
     const m = Math.floor(elapsedSeconds / 60);
     const s = elapsedSeconds % 60;
-    document.getElementById('elapsed-time').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+    const t = `${m}:${s.toString().padStart(2,'0')}`;
+    document.getElementById('elapsed-time').textContent = t;
+    document.getElementById('stream-elapsed').textContent = t;
   }, 1000);
 }
 function stopTimer() {
   clearInterval(elapsedTimer);
   document.getElementById('loading-indicator').style.display = 'none';
+  document.getElementById('streaming-status').style.display = 'none';
 }
 
 // --- Streaming ---
@@ -773,7 +828,7 @@ function showStartButton() {
   const area = document.getElementById('response-area');
   const step = currentSteps[currentStepIndex];
   const title = step ? step.title : '';
-  area.innerHTML = `<div class="status-msg">Ready to run: ${title}</div>`;
+  area.innerHTML = `<div class="status-msg">Ready to run: ${escapeHtml(title)}</div>`;
   document.getElementById('start-step').style.display = 'block';
   document.getElementById('decision-buttons').style.display = 'none';
   document.getElementById('step-title').textContent = title;
@@ -847,7 +902,12 @@ function startStreaming() {
     }
 
     if (data.chunk) {
-      if (firstChunk) { stopTimer(); firstChunk = false; }
+      if (firstChunk) {
+        // Hide spinner, show inline streaming status with timer
+        document.getElementById('loading-indicator').style.display = 'none';
+        document.getElementById('streaming-status').style.display = 'flex';
+        firstChunk = false;
+      }
       rawResponse += data.chunk;
       area.innerHTML = marked.parse(rawResponse);
       area.scrollTop = area.scrollHeight;
@@ -1025,32 +1085,38 @@ async function confirmVerification() {
     }
   }
 
-  // If any rejected, call the API to strip them
-  if (rejected.length > 0) {
-    await fetch('/api/reject-quotes', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({quotes: rejected})
-    });
-    // Re-render the response area with updated text
-    const area = document.getElementById('response-area');
-    const resp = await fetch('/api/status');
-    // Just re-render from the last_response by re-fetching
-    area.innerHTML = marked.parse(rawResponse.replace(
-      ...rejected.map(q => [new RegExp(`"${escapeRegExp(q)}"`, 'g'), '"[quote removed]"']).flat()
-    ) || rawResponse);
-  }
+  // If any rejected, call the API to strip them and use the server's updated response
+  try {
+    if (rejected.length > 0) {
+      const resp = await fetch('/api/reject-quotes', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({quotes: rejected})
+      });
+      const result = await resp.json();
+      if (result.response) {
+        rawResponse = result.response;
+        document.getElementById('response-area').innerHTML = marked.parse(rawResponse);
+      }
+    }
 
-  // Save verified quotes to registry
-  await fetch('/api/save-verified-quotes', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({verification_data: verificationData, accepted_indices})
-  });
+    // Save verified quotes to registry
+    await fetch('/api/save-verified-quotes', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({verification_data: verificationData, accepted_indices})
+    });
+  } catch(e) {
+    showError('analysis-error', 'Could not save verification decisions. Please try again.');
+  }
 
   closeVerificationModal();
 }
 
 function escapeHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showError(elementId, msg) {
+  const el = document.getElementById(elementId);
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
 }
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1073,48 +1139,57 @@ async function sendDecision(action) {
   errEl.style.display = 'none';
   buttons.querySelectorAll('button').forEach(b => b.disabled = true);
 
-  const resp = await fetch('/api/decision', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action})});
-  const data = await resp.json();
-  buttons.querySelectorAll('button').forEach(b => b.disabled = false);
+  try {
+    const resp = await fetch('/api/decision', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action})});
+    const data = await resp.json();
+    buttons.querySelectorAll('button').forEach(b => b.disabled = false);
 
-  if (data.error) { errEl.textContent = data.error; errEl.style.display = 'block'; return; }
+    if (data.error) { errEl.textContent = data.error; errEl.style.display = 'block'; return; }
 
-  if (action === 'retry') startStreaming();
-  else if (action === 'continue') {
-    currentStepIndex = data.step_index;
-    renderProgress(); refreshOutputs();
-    if (data.complete) showComplete();
-    else showStartButton();
-  } else if (action === 'quit') showSetup();
+    if (action === 'retry') startStreaming();
+    else if (action === 'continue') {
+      currentStepIndex = data.step_index;
+      renderProgress(); refreshOutputs();
+      if (data.complete) showComplete();
+      else showStartButton();
+    } else if (action === 'quit') showSetup();
+  } catch(e) {
+    buttons.querySelectorAll('button').forEach(b => b.disabled = false);
+    errEl.textContent = 'Could not connect to the server. Please try again.'; errEl.style.display = 'block';
+  }
 }
 
 // --- Outputs ---
 async function refreshOutputs() {
-  const resp = await fetch('/api/outputs');
-  const files = await resp.json();
   const card = document.getElementById('outputs-card');
   const list = document.getElementById('output-list');
   list.innerHTML = '';
-  if (files.length === 0) { card.style.display = 'none'; return; }
-  card.style.display = 'block';
-  files.forEach(f => {
-    const li = document.createElement('li');
-    li.innerHTML = `<span>${f.title}</span><span style="color:var(--text-dim);font-size:12px;">${f.filename}</span>`;
-    li.onclick = () => viewOutput(f.filename, li);
-    list.appendChild(li);
-  });
+  try {
+    const resp = await fetch('/api/outputs');
+    const files = await resp.json();
+    if (files.length === 0) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    files.forEach(f => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${escapeHtml(f.title)}</span><span style="color:var(--text-dim);font-size:12px;">${escapeHtml(f.filename)}</span>`;
+      li.onclick = () => viewOutput(f.filename, li);
+      list.appendChild(li);
+    });
+  } catch(e) { card.style.display = 'none'; }
 }
 
 async function viewOutput(filename, liEl) {
-  const resp = await fetch(`/api/outputs/${filename}`);
-  const data = await resp.json();
-  if (data.error) return;
-  document.querySelectorAll('.output-list li').forEach(li => li.classList.remove('active'));
-  if (liEl) liEl.classList.add('active');
-  const viewer = document.getElementById('output-viewer');
-  document.getElementById('output-viewer-title').textContent = filename;
-  document.getElementById('output-viewer-content').innerHTML = marked.parse(data.content);
-  viewer.style.display = 'block';
+  try {
+    const resp = await fetch(`/api/outputs/${filename}`);
+    const data = await resp.json();
+    if (data.error) return;
+    document.querySelectorAll('.output-list li').forEach(li => li.classList.remove('active'));
+    if (liEl) liEl.classList.add('active');
+    const viewer = document.getElementById('output-viewer');
+    document.getElementById('output-viewer-title').textContent = filename;
+    document.getElementById('output-viewer-content').innerHTML = marked.parse(data.content);
+    viewer.style.display = 'block';
+  } catch(e) { showError('analysis-error', 'Could not load output file.'); }
 }
 function closeOutputViewer() {
   document.getElementById('output-viewer').style.display = 'none';
