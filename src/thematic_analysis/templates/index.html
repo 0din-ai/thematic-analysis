@@ -248,6 +248,9 @@
   <div id="view-setup" class="view">
     <div class="card" id="existing-projects" style="display:none;">
       <h2>Resume an Existing Project</h2>
+      <div id="project-search-container" style="display:none; margin-bottom:12px;">
+        <input type="text" id="project-search" placeholder="Search projects..." oninput="filterProjects()" style="margin-bottom:0;" />
+      </div>
       <ul class="project-list" id="project-list"></ul>
       <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border);">
       <h3>Or create a new project below</h3>
@@ -295,6 +298,7 @@
           <div class="hint">Higher effort means deeper analysis but slower and more expensive. "High" is recommended.</div>
         </div>
       </div>
+      <div id="setup-warnings" style="display:none; background:#fef9c3; border:1px solid #fde68a; color:#92400e; padding:12px 16px; border-radius:6px; margin-bottom:12px; font-size:13px;"></div>
       <div id="setup-error" class="error-msg" style="display:none;"></div>
       <button class="btn btn-primary" onclick="goToTranscripts()">Next: Add Transcripts</button>
     </div>
@@ -337,18 +341,23 @@
       <div id="detail-settings-success" class="success-msg" style="display:none; margin-bottom:16px;">Settings updated.</div>
 
       <div style="margin-bottom:16px;">
+        <label>Moderator <span style="font-size:11px; color:var(--text-dim); font-weight:normal;">(click to edit)</span></label>
+        <div id="detail-moderator" style="padding:8px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:14px; cursor:pointer;"></div>
+      </div>
+
+      <div style="margin-bottom:16px;">
         <label>Team</label>
         <div id="detail-team" style="padding:8px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:14px;"></div>
       </div>
 
       <div style="margin-bottom:16px;">
-        <label>Research Questions</label>
-        <div id="detail-rq" style="padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:14px; white-space:pre-wrap;"></div>
+        <label>Research Questions <span style="font-size:11px; color:var(--text-dim); font-weight:normal;">(click to edit)</span></label>
+        <div id="detail-rq" style="padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:14px; white-space:pre-wrap; cursor:pointer;"></div>
       </div>
 
       <div style="margin-bottom:16px;">
-        <label>Business Context</label>
-        <div id="detail-biz" style="padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:14px; white-space:pre-wrap;"></div>
+        <label>Business Context <span style="font-size:11px; color:var(--text-dim); font-weight:normal;">(click to edit)</span></label>
+        <div id="detail-biz" style="padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:14px; white-space:pre-wrap; cursor:pointer;"></div>
       </div>
 
       <div style="margin-bottom:16px;">
@@ -381,6 +390,7 @@
         <button class="btn btn-ghost" onclick="showSetup()">Back to Projects</button>
         <button class="btn btn-primary" id="detail-start-btn" onclick="startFromDetail()">Continue Analysis</button>
         <button class="btn btn-ghost btn-sm" id="detail-add-btn" onclick="document.getElementById('detail-add-transcript').style.display='block';" style="display:none;">+ Add Transcript</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--error); margin-left:auto;" onclick="deleteProject()">Delete Project</button>
       </div>
     </div>
   </div>
@@ -477,7 +487,7 @@
       <div class="btn-group" id="decision-buttons" style="display:none;">
         <button class="btn btn-success" onclick="sendDecision('continue')">Continue</button>
         <button class="btn btn-warning" onclick="sendDecision('retry')">Retry</button>
-        <button class="btn btn-ghost" onclick="sendDecision('quit')">Save & Quit</button>
+        <button class="btn btn-ghost" onclick="sendDecision('quit')" title="Completed steps are saved. The current step will need to be re-run when you resume.">Quit to Projects</button>
       </div>
       <div id="analysis-error" class="error-msg" style="display:none;"></div>
     </div>
@@ -570,7 +580,7 @@ function showView(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-function showSetup() { loadProjects(); showView('view-setup'); }
+function showSetup() { pendingTranscripts = []; loadProjects(); showView('view-setup'); }
 
 function backToProjects() {
   if (isStreaming) {
@@ -681,12 +691,40 @@ async function loadProjects() {
     container.style.display = 'block';
     projects.forEach(p => {
       const li = document.createElement('li');
-      li.innerHTML = `<span><strong>${escapeHtml(p.name)}</strong></span>
-        <span class="project-progress">${p.completed}/${p.total} stages</span>`;
+      const participants = (p.participants || []).map(escapeHtml).join(', ');
+      const created = p.created ? new Date(p.created).toLocaleDateString() : '';
+      const statusClass = p.status === 'complete' ? 'badge-success' : (p.status === 'in_progress' ? 'badge-warning' : '');
+      const statusLabel = p.status === 'complete' ? 'Complete' : (p.status === 'in_progress' ? 'In progress' : 'Not started');
+      li.innerHTML = `
+        <div style="min-width:0;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <strong style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(p.name)}</strong>
+            <span class="badge ${statusClass}" style="flex-shrink:0; font-size:11px;">${statusLabel}</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-dim); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            ${p.transcript_count} transcript${p.transcript_count !== 1 ? 's' : ''}${participants ? ' &mdash; ' + participants : ''}
+          </div>
+        </div>
+        <div style="text-align:right; flex-shrink:0;">
+          <span class="project-progress">${p.completed}/${p.total}</span>
+          <div style="font-size:11px; color:var(--text-dim); margin-top:2px;">${created}</div>
+        </div>`;
       li.onclick = () => resumeProject(p.path);
       list.appendChild(li);
     });
+    // Show search when there are enough projects
+    const searchContainer = document.getElementById('project-search-container');
+    searchContainer.style.display = projects.length >= 5 ? 'block' : 'none';
+    document.getElementById('project-search').value = '';
   } catch(e) { container.style.display = 'none'; }
+}
+
+function filterProjects() {
+  const query = document.getElementById('project-search').value.toLowerCase();
+  document.querySelectorAll('#project-list li').forEach(li => {
+    const name = li.querySelector('strong').textContent.toLowerCase();
+    li.style.display = name.includes(query) ? '' : 'none';
+  });
 }
 
 // --- Transcript management ---
@@ -697,7 +735,21 @@ function goToTranscripts() {
     err.textContent = 'Project name is required.'; err.style.display = 'block'; return;
   }
   document.getElementById('setup-error').style.display = 'none';
-  pendingTranscripts = [];
+
+  // Non-blocking warnings for empty fields
+  const warningEl = document.getElementById('setup-warnings');
+  const warnings = [];
+  if (!document.getElementById('research-questions').value.trim())
+    warnings.push('Research questions are empty. Analysis quality improves significantly with specific research questions.');
+  if (!document.getElementById('business-context').value.trim())
+    warnings.push('Business context is empty. The implications stage will lack context.');
+  if (warnings.length > 0) {
+    warningEl.innerHTML = warnings.map(w => `<div style="margin-bottom:4px;">&#9888; ${w}</div>`).join('');
+    warningEl.style.display = 'block';
+  } else {
+    warningEl.style.display = 'none';
+  }
+
   renderTranscriptList();
   showView('view-transcripts');
 }
@@ -843,14 +895,59 @@ function renderProjectDetail(data) {
   modelSelect.onchange = checkChange;
   reasoningSelect.onchange = checkChange;
 
-  // Team
-  const team = [data.moderator_name + ' (moderator)'];
-  (data.note_takers || []).forEach(nt => team.push(nt + ' (note-taker)'));
-  document.getElementById('detail-team').textContent = team.join(', ');
+  // Moderator (click-to-edit)
+  const modEl = document.getElementById('detail-moderator');
+  modEl.textContent = data.moderator_name || '(not set)';
+  if (!data.moderator_name) modEl.style.color = 'var(--text-dim)';
+  else modEl.style.color = '';
+  modEl.onclick = function() {
+    modEl.onclick = null;
+    modEl.innerHTML = `<input type="text" id="edit-moderator" value="${escapeHtml(data.moderator_name || '')}" style="margin-bottom:0;" />
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveProjectField('moderator_name', document.getElementById('edit-moderator').value)">Save</button>
+        <button class="btn btn-ghost btn-sm" onclick="showProjectDetail(projectDir)">Cancel</button>
+      </div>`;
+    document.getElementById('edit-moderator').focus();
+  };
 
-  // Research questions & business context
-  document.getElementById('detail-rq').textContent = data.research_questions || '(not set)';
-  document.getElementById('detail-biz').textContent = data.business_context || '(not set)';
+  // Team (read-only display of note-takers)
+  const team = [];
+  (data.note_takers || []).forEach(nt => team.push(nt + ' (note-taker)'));
+  const teamEl = document.getElementById('detail-team');
+  if (team.length > 0) {
+    teamEl.textContent = team.join(', ');
+    teamEl.parentElement.style.display = '';
+  } else {
+    teamEl.parentElement.style.display = 'none';
+  }
+
+  // Research questions (click-to-edit)
+  const rqEl = document.getElementById('detail-rq');
+  rqEl.textContent = data.research_questions || '(empty — click to add)';
+  rqEl.style.color = data.research_questions ? '' : 'var(--text-dim)';
+  rqEl.onclick = function() {
+    rqEl.onclick = null;
+    rqEl.innerHTML = `<textarea id="edit-rq" style="width:100%; min-height:100px; font-size:14px; font-family:inherit;">${escapeHtml(data.research_questions || '')}</textarea>
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveProjectField('research_questions', document.getElementById('edit-rq').value)">Save</button>
+        <button class="btn btn-ghost btn-sm" onclick="showProjectDetail(projectDir)">Cancel</button>
+      </div>`;
+    document.getElementById('edit-rq').focus();
+  };
+
+  // Business context (click-to-edit)
+  const bizEl = document.getElementById('detail-biz');
+  bizEl.textContent = data.business_context || '(empty — click to add)';
+  bizEl.style.color = data.business_context ? '' : 'var(--text-dim)';
+  bizEl.onclick = function() {
+    bizEl.onclick = null;
+    bizEl.innerHTML = `<textarea id="edit-biz" style="width:100%; min-height:100px; font-size:14px; font-family:inherit;">${escapeHtml(data.business_context || '')}</textarea>
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <button class="btn btn-primary btn-sm" onclick="saveProjectField('business_context', document.getElementById('edit-biz').value)">Save</button>
+        <button class="btn btn-ghost btn-sm" onclick="showProjectDetail(projectDir)">Cancel</button>
+      </div>`;
+    document.getElementById('edit-biz').focus();
+  };
 
   // Transcripts
   const tContainer = document.getElementById('detail-transcripts');
@@ -894,6 +991,20 @@ function startFromDetail() {
   startAnalysis();
 }
 
+async function deleteProject() {
+  const name = document.getElementById('detail-project-name').textContent;
+  if (!confirm(`Permanently delete project "${name}"?\n\nThis will remove all transcripts, outputs, and configuration. This cannot be undone.`)) return;
+  try {
+    const resp = await fetch('/api/project-delete', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path: projectDir})
+    });
+    const data = await resp.json();
+    if (data.error) { showError('detail-error', data.error); return; }
+    showSetup();
+  } catch(e) { showError('detail-error', 'Could not delete project.'); }
+}
+
 async function addTranscriptToProject() {
   const participant = document.getElementById('detail-t-participant').value.trim();
   const text = document.getElementById('detail-t-text').value.trim();
@@ -930,6 +1041,20 @@ async function saveProjectSettings() {
     // Refresh to update saved values
     await showProjectDetail(projectDir);
   } catch(e) { showError('detail-error', 'Could not save settings. Please try again.'); }
+}
+
+async function saveProjectField(field, value) {
+  const body = {path: projectDir};
+  body[field] = value;
+  try {
+    const resp = await fetch('/api/project-settings', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (data.error) { showError('detail-error', data.error); return; }
+    await showProjectDetail(projectDir);
+  } catch(e) { showError('detail-error', 'Could not save. Please try again.'); }
 }
 
 async function startAnalysis() {
@@ -1393,6 +1518,9 @@ function closeVerificationModal() {
 
 // --- Decision ---
 async function sendDecision(action) {
+  if (action === 'retry') {
+    if (!confirm('This will discard the current response and re-run this step. Continue?')) return;
+  }
   const buttons = document.getElementById('decision-buttons');
   const errEl = document.getElementById('analysis-error');
   errEl.style.display = 'none';

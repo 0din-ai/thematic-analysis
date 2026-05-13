@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import shutil
 import sys
 import webbrowser
 import zipfile
@@ -154,6 +155,8 @@ def save_key():
 
 @app.route("/api/projects")
 def list_projects():
+    import datetime
+
     projects_dir = _base_dir() / "projects"
     projects = []
     if projects_dir.exists():
@@ -167,15 +170,39 @@ def list_projects():
                     steps = build_steps(stages, cfg)
                     output_dir = d / "output"
                     completed = determine_resume_point(output_dir, steps)
+                    transcript_count = len(cfg.transcripts)
+                    participants = [t["participant"] for t in cfg.transcripts]
                 except Exception:
+                    cfg = None
                     steps = []
                     completed = 0
+                    transcript_count = 0
+                    participants = []
+
+                total = len(steps)
+                if completed == 0:
+                    status = "not_started"
+                elif completed >= total:
+                    status = "complete"
+                else:
+                    status = "in_progress"
+
+                config_mtime = config.stat().st_mtime
+                created = datetime.datetime.fromtimestamp(config_mtime).isoformat()
+
                 projects.append({
                     "name": d.name,
                     "path": str(d),
                     "completed": completed,
-                    "total": len(steps),
+                    "total": total,
+                    "created": created,
+                    "transcript_count": transcript_count,
+                    "participants": participants,
+                    "status": status,
                 })
+
+    # Sort by most recently modified first
+    projects.sort(key=lambda p: p["created"], reverse=True)
     return jsonify(projects)
 
 
@@ -256,7 +283,7 @@ def project_detail():
 
 @app.route("/api/project-settings", methods=["POST"])
 def update_project_settings():
-    """Update model and reasoning effort for a project."""
+    """Update project settings (model, reasoning, research questions, etc.)."""
     data = request.json
     project_path = data.get("path", "")
     model = data.get("model", "").strip()
@@ -281,6 +308,42 @@ def update_project_settings():
             text,
             flags=re.MULTILINE,
         )
+
+    # Editable text fields
+    research_questions = data.get("research_questions")
+    business_context = data.get("business_context")
+    moderator_name = data.get("moderator_name")
+
+    if research_questions is not None:
+        # Sanitize triple-quotes to prevent TOML breakage
+        safe_rq = research_questions.strip().replace('"""', '""')
+        text = re.sub(
+            r'(research_questions\s*=\s*""").*?(""")',
+            lambda m: m.group(1) + "\n" + safe_rq + "\n" + m.group(2),
+            text,
+            flags=re.DOTALL,
+            count=1,
+        )
+
+    if business_context is not None:
+        safe_bc = business_context.strip().replace('"""', '""')
+        text = re.sub(
+            r'(business_context\s*=\s*""").*?(""")',
+            lambda m: m.group(1) + "\n" + safe_bc + "\n" + m.group(2),
+            text,
+            flags=re.DOTALL,
+            count=1,
+        )
+
+    if moderator_name is not None:
+        safe_mod = moderator_name.strip().replace('"', "")
+        text = re.sub(
+            r'^moderator_name\s*=\s*".*?"',
+            f'moderator_name = "{safe_mod}"',
+            text,
+            flags=re.MULTILINE,
+        )
+
     config_path.write_text(text, encoding="utf-8")
 
     # Update in-memory state if this project is currently loaded
@@ -293,7 +356,40 @@ def update_project_settings():
             _state["config"].model = model
         if reasoning_effort:
             _state["config"].reasoning_effort = reasoning_effort
+        if research_questions is not None:
+            _state["config"].research_questions = research_questions.strip()
+        if business_context is not None:
+            _state["config"].business_context = business_context.strip()
+        if moderator_name is not None:
+            _state["config"].moderator_name = moderator_name.strip()
 
+    return jsonify({"ok": True})
+
+
+@app.route("/api/project-delete", methods=["POST"])
+def delete_project():
+    """Delete a project and all its files."""
+    data = request.json
+    project_path = data.get("path", "")
+    if not project_path:
+        return jsonify({"error": "No project path provided"}), 400
+
+    project_dir = Path(project_path)
+    if not (project_dir / "config.toml").exists():
+        return jsonify({"error": "Project not found"}), 404
+
+    # Safety: ensure the project is under our projects directory
+    projects_root = _base_dir() / "projects"
+    try:
+        project_dir.resolve().relative_to(projects_root.resolve())
+    except ValueError:
+        return jsonify({"error": "Invalid project path"}), 400
+
+    # Don't delete the currently active project
+    if _state["project_dir"] is not None and str(_state["project_dir"]) == project_path:
+        return jsonify({"error": "Cannot delete the currently active project. Return to the project list first."}), 400
+
+    shutil.rmtree(project_dir)
     return jsonify({"ok": True})
 
 
@@ -306,6 +402,10 @@ def setup_project():
         return jsonify({"error": "Project name is required"}), 400
 
     project_dir = _base_dir() / "projects" / name
+
+    # Prevent overwriting an existing project
+    if (project_dir / "config.toml").exists():
+        return jsonify({"error": f"A project named '{name}' already exists. Choose a different name or delete the existing project first."}), 409
 
     # Parse transcripts list: [{participant, text}, ...]
     transcripts_raw = data.get("transcripts", [])
