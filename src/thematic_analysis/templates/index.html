@@ -28,10 +28,11 @@
   .card h3 { font-size: 15px; margin-bottom: 12px; color: var(--text-dim); }
 
   label { display: block; font-weight: 500; margin-bottom: 4px; font-size: 14px; }
-  input[type="text"], select, textarea {
+  input[type="text"], input[type="password"], select, textarea {
     width: 100%; padding: 10px 12px; border: 1px solid var(--border);
     border-radius: 6px; font-size: 14px; font-family: inherit;
     margin-bottom: 16px; background: var(--surface); }
+  #view-project-detail select { margin-bottom: 0; }
   textarea { min-height: 100px; resize: vertical; }
   textarea.transcript { min-height: 180px; font-family: monospace; font-size: 13px; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -239,7 +240,7 @@
     </div>
 
     <div style="margin-top:16px;">
-      <button class="btn btn-ghost" onclick="showSetup()">Back to Dashboard</button>
+      <button class="btn btn-ghost" onclick="goBackFromSettings()">Back</button>
     </div>
   </div>
 
@@ -299,6 +300,91 @@
     </div>
   </div>
 
+  <!-- Project Detail View -->
+  <div id="view-project-detail" class="view">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div>
+          <h2 id="detail-project-name"></h2>
+          <span id="detail-status-badge" class="badge" style="margin-top:4px;"></span>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:16px; margin-bottom:16px; align-items:end;">
+        <div>
+          <label for="detail-model">Model</label>
+          <select id="detail-model">
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-5">GPT-5</option>
+            <option value="gpt-5.4">GPT-5.4</option>
+            <option value="gpt-5.5">GPT-5.5</option>
+          </select>
+        </div>
+        <div>
+          <label for="detail-reasoning">Reasoning Effort</label>
+          <select id="detail-reasoning">
+            <option value="none">None</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="xhigh">Extra High</option>
+          </select>
+        </div>
+        <div>
+          <button class="btn btn-ghost btn-sm" id="detail-save-settings" onclick="saveProjectSettings()" style="display:none;">Save</button>
+        </div>
+      </div>
+      <div id="detail-settings-success" class="success-msg" style="display:none; margin-bottom:16px;">Settings updated.</div>
+
+      <div style="margin-bottom:16px;">
+        <label>Team</label>
+        <div id="detail-team" style="padding:8px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:14px;"></div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label>Research Questions</label>
+        <div id="detail-rq" style="padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:14px; white-space:pre-wrap;"></div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label>Business Context</label>
+        <div id="detail-biz" style="padding:10px 12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:14px; white-space:pre-wrap;"></div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label>Transcripts</label>
+        <div id="detail-transcripts"></div>
+      </div>
+
+      <!-- Add Transcript form (conditionally shown) -->
+      <div id="detail-add-transcript" style="display:none; margin-bottom:16px; padding:16px; border:1px dashed var(--border); border-radius:6px;">
+        <h3 style="margin-bottom:12px;">Add Transcript</h3>
+        <label for="detail-t-participant">Participant Name</label>
+        <input type="text" id="detail-t-participant" placeholder="e.g. Bryan Johns" />
+        <label for="detail-t-text">Interview Transcript</label>
+        <textarea id="detail-t-text" class="transcript" placeholder="Paste the interview transcript here."></textarea>
+        <div id="detail-transcript-error" class="error-msg" style="display:none;"></div>
+        <div class="btn-group" style="margin-top:0;">
+          <button class="btn btn-primary btn-sm" onclick="addTranscriptToProject()">Save Transcript</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('detail-add-transcript').style.display='none';">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Completed outputs -->
+      <div id="detail-outputs" style="display:none; margin-bottom:16px;">
+        <label>Completed Outputs</label>
+        <ul class="output-list" id="detail-output-list"></ul>
+      </div>
+
+      <div id="detail-error" class="error-msg" style="display:none;"></div>
+      <div class="btn-group">
+        <button class="btn btn-ghost" onclick="showSetup()">Back to Projects</button>
+        <button class="btn btn-primary" id="detail-start-btn" onclick="startFromDetail()">Continue Analysis</button>
+        <button class="btn btn-ghost btn-sm" id="detail-add-btn" onclick="document.getElementById('detail-add-transcript').style.display='block';" style="display:none;">+ Add Transcript</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Transcript Management View -->
   <div id="view-transcripts" class="view">
     <div class="card">
@@ -339,8 +425,9 @@
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <div>
-          <div id="project-name-display" style="font-size:12px; color:var(--text-dim); margin-bottom:2px;"></div>
+          <a href="#" onclick="backToProjects(); return false;" style="font-size:14px; color:var(--primary); text-decoration:none; display:inline-flex; align-items:center; gap:4px; margin-bottom:4px;">&#8592; <span id="project-name-display"></span></a>
           <h2 id="step-title">Loading...</h2>
+          <div id="config-badges" style="display:none; font-size:12px; color:var(--text-dim); margin-top:2px;"></div>
         </div>
         <div style="display:flex; align-items:center; gap:12px;">
           <button class="btn btn-ghost btn-sm" id="btn-toggle-prompt" onclick="togglePrompt()">View Prompt</button>
@@ -458,6 +545,8 @@ let verificationPending = false;
 let promptVisible = false;
 let historyVisible = false;
 let currentSource = null; // EventSource for cancel support
+let previousView = null; // Track where user came from (for Settings back button)
+let configSummary = null; // Config summary from /api/start
 
 // Warn before closing tab during active analysis
 window.addEventListener('beforeunload', function(e) {
@@ -476,10 +565,26 @@ window.addEventListener('keydown', function(e) {
 
 // --- Views ---
 function showView(id) {
+  const current = document.querySelector('.view.active');
+  if (current) previousView = current.id;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
 function showSetup() { loadProjects(); showView('view-setup'); }
+
+function backToProjects() {
+  if (isStreaming) {
+    if (!confirm('Leave while generating? Progress is saved up to the last completed step.')) return;
+    cancelStreaming();
+  }
+  showSetup();
+}
+
+function goBackFromSettings() {
+  if (previousView === 'view-analysis') showView('view-analysis');
+  else if (previousView === 'view-project-detail') showView('view-project-detail');
+  else showSetup();
+}
 
 // --- Init ---
 async function init() {
@@ -685,7 +790,147 @@ async function createAndStart() {
   } catch(e) { err.textContent = 'Could not connect to the server. Please try again.'; err.style.display = 'block'; }
 }
 
-async function resumeProject(dir) { projectDir = dir; projectName = dir.split('/').pop(); await startAnalysis(); }
+async function resumeProject(dir) { projectDir = dir; projectName = dir.split('/').pop(); await showProjectDetail(dir); }
+
+// --- Project Detail ---
+async function showProjectDetail(dir) {
+  try {
+    const resp = await fetch(`/api/project-detail?path=${encodeURIComponent(dir)}`);
+    const data = await resp.json();
+    if (data.error) {
+      const err = document.getElementById('setup-error');
+      if (err) { err.textContent = data.error; err.style.display = 'block'; }
+      return;
+    }
+    renderProjectDetail(data);
+    showView('view-project-detail');
+  } catch(e) {
+    const err = document.getElementById('setup-error');
+    if (err) { err.textContent = 'Could not load project details.'; err.style.display = 'block'; }
+  }
+}
+
+function renderProjectDetail(data) {
+  document.getElementById('detail-project-name').textContent = data.name;
+
+  // Status badge
+  const badge = document.getElementById('detail-status-badge');
+  if (data.status === 'complete') {
+    badge.textContent = 'Complete'; badge.className = 'badge badge-success';
+  } else if (data.status === 'in_progress') {
+    badge.textContent = `In progress \u2014 ${data.progress.completed}/${data.progress.total} stages`;
+    badge.className = 'badge badge-warning';
+  } else {
+    badge.textContent = 'Not started'; badge.className = 'badge';
+    badge.style.background = 'var(--bg)'; badge.style.color = 'var(--text-dim)';
+  }
+
+  // Config fields (editable dropdowns)
+  const modelSelect = document.getElementById('detail-model');
+  const reasoningSelect = document.getElementById('detail-reasoning');
+  modelSelect.value = data.model;
+  reasoningSelect.value = data.reasoning_effort || 'none';
+  document.getElementById('detail-settings-success').style.display = 'none';
+
+  // Show save button when values change
+  const saveBtn = document.getElementById('detail-save-settings');
+  saveBtn.style.display = 'none';
+  const checkChange = () => {
+    const changed = modelSelect.value !== data.model || reasoningSelect.value !== (data.reasoning_effort || 'none');
+    saveBtn.style.display = changed ? 'inline-flex' : 'none';
+    document.getElementById('detail-settings-success').style.display = 'none';
+  };
+  modelSelect.onchange = checkChange;
+  reasoningSelect.onchange = checkChange;
+
+  // Team
+  const team = [data.moderator_name + ' (moderator)'];
+  (data.note_takers || []).forEach(nt => team.push(nt + ' (note-taker)'));
+  document.getElementById('detail-team').textContent = team.join(', ');
+
+  // Research questions & business context
+  document.getElementById('detail-rq').textContent = data.research_questions || '(not set)';
+  document.getElementById('detail-biz').textContent = data.business_context || '(not set)';
+
+  // Transcripts
+  const tContainer = document.getElementById('detail-transcripts');
+  tContainer.innerHTML = '';
+  data.transcripts.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'transcript-item';
+    div.innerHTML = `<div><span class="name">${escapeHtml(t.participant)}</span><br>
+      <span class="meta">${t.line_count} lines</span></div>`;
+    tContainer.appendChild(div);
+  });
+
+  // Add transcript button
+  const addBtn = document.getElementById('detail-add-btn');
+  addBtn.style.display = data.can_add_transcripts ? 'inline-flex' : 'none';
+  document.getElementById('detail-add-transcript').style.display = 'none';
+
+  // Start button label
+  const startBtn = document.getElementById('detail-start-btn');
+  if (data.status === 'not_started') startBtn.textContent = 'Start Analysis';
+  else if (data.status === 'complete') startBtn.textContent = 'View Results';
+  else startBtn.textContent = 'Continue Analysis';
+
+  // Outputs
+  const outputsCard = document.getElementById('detail-outputs');
+  const outputList = document.getElementById('detail-output-list');
+  outputList.innerHTML = '';
+  if (data.outputs.length > 0) {
+    outputsCard.style.display = 'block';
+    data.outputs.forEach(f => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${escapeHtml(f.title)}</span><span style="color:var(--text-dim);font-size:12px;">${escapeHtml(f.filename)}</span>`;
+      outputList.appendChild(li);
+    });
+  } else {
+    outputsCard.style.display = 'none';
+  }
+}
+
+function startFromDetail() {
+  startAnalysis();
+}
+
+async function addTranscriptToProject() {
+  const participant = document.getElementById('detail-t-participant').value.trim();
+  const text = document.getElementById('detail-t-text').value.trim();
+  const err = document.getElementById('detail-transcript-error');
+  if (!participant || !text) { err.textContent = 'Both participant name and transcript are required.'; err.style.display = 'block'; return; }
+  err.style.display = 'none';
+  try {
+    const resp = await fetch('/api/add-transcript', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({project_dir: projectDir, participant, text})
+    });
+    const data = await resp.json();
+    if (data.error) { err.textContent = data.error; err.style.display = 'block'; return; }
+    // Clear form and refresh
+    document.getElementById('detail-t-participant').value = '';
+    document.getElementById('detail-t-text').value = '';
+    document.getElementById('detail-add-transcript').style.display = 'none';
+    await showProjectDetail(projectDir);
+  } catch(e) { err.textContent = 'Could not save transcript. Please try again.'; err.style.display = 'block'; }
+}
+
+async function saveProjectSettings() {
+  const model = document.getElementById('detail-model').value;
+  const reasoning_effort = document.getElementById('detail-reasoning').value;
+  try {
+    const resp = await fetch('/api/project-settings', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path: projectDir, model, reasoning_effort})
+    });
+    const data = await resp.json();
+    if (data.error) { showError('detail-error', data.error); return; }
+    document.getElementById('detail-save-settings').style.display = 'none';
+    document.getElementById('detail-settings-success').style.display = 'block';
+    // Refresh to update saved values
+    await showProjectDetail(projectDir);
+  } catch(e) { showError('detail-error', 'Could not save settings. Please try again.'); }
+}
 
 async function startAnalysis() {
   try {
@@ -698,8 +943,10 @@ async function startAnalysis() {
     }
     currentSteps = data.steps;
     currentStepIndex = data.current_step;
+    configSummary = data.config_summary || null;
     showView('view-analysis');
     renderProgress();
+    renderConfigBadges();
     refreshOutputs();
     if (currentStepIndex >= currentSteps.length) showComplete();
     else showStartButton();
@@ -715,7 +962,7 @@ function renderProgress() {
   const labels = document.getElementById('step-labels');
   bar.innerHTML = ''; labels.innerHTML = '';
   const pnDisplay = document.getElementById('project-name-display');
-  if (pnDisplay && projectName) pnDisplay.textContent = projectName;
+  if (pnDisplay) pnDisplay.textContent = projectName || 'Projects';
 
   currentSteps.forEach((s, i) => {
     const div = document.createElement('div');
@@ -738,6 +985,18 @@ function renderProgress() {
     document.getElementById('step-title').textContent = step.title;
     document.getElementById('step-counter').textContent = `Step ${currentStepIndex + 1} of ${currentSteps.length}`;
   }
+}
+
+function renderConfigBadges() {
+  const el = document.getElementById('config-badges');
+  if (!el || !configSummary) { if (el) el.style.display = 'none'; return; }
+  const parts = [
+    escapeHtml(configSummary.model || ''),
+    (configSummary.reasoning_effort || 'none') + ' reasoning',
+    configSummary.transcript_count + ' transcript' + (configSummary.transcript_count !== 1 ? 's' : ''),
+  ];
+  el.textContent = parts.join('  \u00b7  ');
+  el.style.display = 'block';
 }
 
 // --- Prompt viewer ---

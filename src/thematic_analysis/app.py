@@ -179,6 +179,124 @@ def list_projects():
     return jsonify(projects)
 
 
+@app.route("/api/project-detail")
+def project_detail():
+    """Return full project config and status for the detail page."""
+    project_path = request.args.get("path", "")
+    if not project_path:
+        return jsonify({"error": "No project path provided"}), 400
+
+    project_dir = Path(project_path)
+    config_path = project_dir / "config.toml"
+    if not config_path.exists():
+        return jsonify({"error": "Project not found"}), 404
+
+    try:
+        cfg = load_config(config_path)
+        stages = parse_prompts(cfg.prompts_file)
+        steps = build_steps(stages, cfg)
+        output_dir = project_dir / "output"
+        completed = determine_resume_point(output_dir, steps)
+    except Exception as e:
+        return jsonify({"error": f"Could not load project: {e}"}), 500
+
+    # Determine status
+    total = len(steps)
+    if completed == 0:
+        status = "not_started"
+    elif completed >= total:
+        status = "complete"
+    else:
+        status = "in_progress"
+
+    # Check if transcripts can still be added (only before merge/analysis steps)
+    can_add = completed == 0 or all(
+        steps[i].step_type == "coding" for i in range(completed)
+    )
+
+    # Transcript info with line counts
+    transcripts_info = []
+    for t in cfg.transcripts:
+        line_count = 0
+        if t["path"].exists():
+            line_count = len(t["path"].read_text(encoding="utf-8").splitlines())
+        transcripts_info.append({
+            "participant": t["participant"],
+            "line_count": line_count,
+        })
+
+    # Note-takers from team
+    note_takers = [
+        m.name for m in (cfg.team or []) if m.role == "note-taker"
+    ]
+
+    # Completed outputs
+    outputs = []
+    for step in steps[:completed]:
+        filepath = output_dir / step.filename
+        if filepath.exists():
+            outputs.append({"filename": step.filename, "title": step.title})
+
+    return jsonify({
+        "name": project_dir.name,
+        "path": str(project_dir),
+        "model": cfg.model,
+        "reasoning_effort": cfg.reasoning_effort or "none",
+        "moderator_name": cfg.moderator_name,
+        "note_takers": note_takers,
+        "research_questions": cfg.research_questions,
+        "business_context": cfg.business_context,
+        "transcripts": transcripts_info,
+        "progress": {"completed": completed, "total": total},
+        "status": status,
+        "can_add_transcripts": can_add,
+        "outputs": outputs,
+    })
+
+
+@app.route("/api/project-settings", methods=["POST"])
+def update_project_settings():
+    """Update model and reasoning effort for a project."""
+    data = request.json
+    project_path = data.get("path", "")
+    model = data.get("model", "").strip()
+    reasoning_effort = data.get("reasoning_effort", "").strip()
+
+    if not project_path:
+        return jsonify({"error": "No project path provided"}), 400
+
+    config_path = Path(project_path) / "config.toml"
+    if not config_path.exists():
+        return jsonify({"error": "Project not found"}), 404
+
+    import re
+
+    text = config_path.read_text(encoding="utf-8")
+    if model:
+        text = re.sub(r'^model\s*=\s*".*?"', f'model = "{model}"', text, flags=re.MULTILINE)
+    if reasoning_effort:
+        text = re.sub(
+            r'^reasoning_effort\s*=\s*".*?"',
+            f'reasoning_effort = "{reasoning_effort}"',
+            text,
+            flags=re.MULTILINE,
+        )
+    config_path.write_text(text, encoding="utf-8")
+
+    # Update in-memory state if this project is currently loaded
+    if (
+        _state["config"] is not None
+        and _state["project_dir"] is not None
+        and str(_state["project_dir"]) == project_path
+    ):
+        if model:
+            _state["config"].model = model
+        if reasoning_effort:
+            _state["config"].reasoning_effort = reasoning_effort
+
+    return jsonify({"ok": True})
+
+
 @app.route("/api/setup", methods=["POST"])
 def setup_project():
     """Create a new project from form data."""
@@ -298,6 +416,12 @@ def start_analysis():
         "ok": True,
         "total_steps": len(steps),
         "current_step": resume_point,
+        "config_summary": {
+            "model": config.model,
+            "reasoning_effort": config.reasoning_effort or "none",
+            "moderator_name": config.moderator_name,
+            "transcript_count": len(config.transcripts),
+        },
         "steps": [
             {
                 "index": i,
