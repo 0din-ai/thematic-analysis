@@ -25,121 +25,121 @@ About the research team: The following people are part of the research team and 
 
 We are now moving to stage 2 of the analysis. Now group all codes that belong to the same topic, and merge duplicates. The goal is to group the existing codes into coherent thematic clusters based on shared meaning.
 
-**\*Instructions\***
+**Instructions**
 
-**1.Grouping Logic**
+**1. Grouping Logic**
 
-\-Group codes that reflect the same underlying concept, issue, or phenomenon.
+- Group codes that reflect the same underlying concept, issue, or phenomenon.
 
-\-Do not group codes based on superficial similarity in wording. Focus on meaning.
+- Do not group codes based on superficial similarity in wording. Focus on meaning.
 
-\-Avoid overly broad clusters. Each group must be conceptually coherent.
+- Avoid overly broad clusters. Each group must be conceptually coherent.
 
-**2.Merging Duplicates**
+**2. Merging Duplicates**
 
-\-Identify and merge duplicate or highly overlapping codes.
+- Identify and merge duplicate or highly overlapping codes.
 
-\-When merging, retain the most precise and descriptive label.
+- When merging, retain the most precise and descriptive label.
 
-\-List all original codes that were merged.
+- List all original codes that were merged.
 
-**3.Cluster Construction**
+**3. Cluster Construction**
 
-\-Each cluster should represent a distinct topic.
+- Each cluster should represent a distinct topic.
 
-\-A code should appear in only one cluster unless there is a strong justification for overlap (flag explicitly if so).
+- A code should appear in only one cluster unless there is a strong justification for overlap (flag explicitly if so).
 
-**4.Standalone Codes**
+**4. Standalone Codes**
 
-\-If a code does not meaningfully relate to others, keep it as a standalone cluster.
+- If a code does not meaningfully relate to others, keep it as a standalone cluster.
 
-\-Do not force grouping.
+- Do not force grouping.
 
-**5.Quality Control**
+**5. Quality Control**
 
-\-Ensure internal coherence (codes in a cluster clearly belong together)
+- Ensure internal coherence (codes in a cluster clearly belong together)
 
-\-Ensure external distinction (clusters are meaningfully different from each other)
+- Ensure external distinction (clusters are meaningfully different from each other)
 
-**\*Output Format\***
+**Output Format**
 
 For each cluster:
 
-\-Cluster Name: \[Concise descriptive label\]
+- Cluster Name: [Concise descriptive label]
 
-\-Core Concept: \[1–2 sentence explanation of shared meaning\]
+- Core Concept: [1–2 sentence explanation of shared meaning]
 
 For merged Codes (if applicable):
 
-\-Original → Final label
+- Original → Final label
 
 ---
 
-# 3- "What" \-Develop themes
+# 3- "What" - Develop themes
 
 Develop a thematic framework that answers the following research questions:
 
 {{RESEARCH_QUESTIONS}}
 
-**\*Instructions\***
+**Instructions**
 
-**1.Theme Construction**
+**1. Theme Construction**
 
-\-Develop higher-order themes by synthesizing clusters of codes.
+- Develop higher-order themes by synthesizing clusters of codes.
 
-\-Each theme must represent a pattern of shared meaning relevant to the research questions (not just a topic label).
+- Each theme must represent a pattern of shared meaning relevant to the research questions (not just a topic label).
 
-\-Avoid purely descriptive themes—prioritize interpretive/analytical themes.
+- Avoid purely descriptive themes—prioritize interpretive/analytical themes.
 
-**2.Link to Research Questions**
+**2. Link to Research Questions**
 
-\-Explicitly indicate which research question(s) each theme addresses.
+- Explicitly indicate which research question(s) each theme addresses.
 
-\-Themes may address multiple questions, but this must be justified.
+- Themes may address multiple questions, but this must be justified.
 
-**3.Hierarchy**
+**3. Hierarchy**
 
 Ensure clear hierarchical relationships, not flat lists. Organize into:
 
-\-Main themes (broad, central patterns)
+- Main themes (broad, central patterns)
 
-\-Sub-themes (more specific dimensions within each theme)
+- Sub-themes (more specific dimensions within each theme)
 
-\-Add supporting verbatim quotes and specify who said it.
+- Add supporting verbatim quotes and specify who said it.
 
-4\.**Use of Codes**
+**4. Use of Codes**
 
 Show how themes are grounded in data by:
 
-\-Listing representative codes for each (sub-)theme
+- Listing representative codes for each (sub-)theme
 
 You may merge, rename, or reorganize codes, but:
 
-\-Preserve conceptual meaning
+- Preserve conceptual meaning
 
-\-Avoid unnecessary loss of nuance
+- Avoid unnecessary loss of nuance
 
-**5.Refinement Criteria**
+**5. Refinement Criteria**
 
 Ensure:
 
-\-Internal coherence (elements within a theme fit together)
+- Internal coherence (elements within a theme fit together)
 
-\-External distinction (themes are meaningfully different)
+- External distinction (themes are meaningfully different)
 
-\-Analytical usefulness (themes help answer the research questions)
+- Analytical usefulness (themes help answer the research questions)
 
-**6\. Interpretive Layer**
+**6. Interpretive Layer**
 
 Go beyond categorization:
 
-\-Identify patterns, tensions, or contradictions
+- Identify patterns, tensions, or contradictions
 
-\-Highlight processes (e.g., how bias emerges, is negotiated, or mitigated)
+- Highlight processes (e.g., how bias emerges, is negotiated, or mitigated)
 
 ---
 
-# 4-"So what?" \- Why it matters
+# 4- "So what?" - Why it matters
 
 Now act as a senior product strategy advisor translating qualitative research findings into business and product implications.
 
@@ -149,72 +149,72 @@ Interpret the thematic findings to explain:
 * **Why product leaders should care**
 * **How these insights should shape product strategy, decisions, and priorities**
 
-**\*Business context\***
+**Business context**
 
 {{BUSINESS_CONTEXT}}
 
-**\*Instructions\***
+**Instructions**
 
-**1.Translate Themes → Business Impact**
+**1. Translate Themes → Business Impact**
 
 For each major theme:
 
-\-Explain the practical consequence for product development, user experience, or market positioning
+- Explain the practical consequence for product development, user experience, or market positioning
 
-\-Focus on risk, opportunity, and trade-offs
+- Focus on risk, opportunity, and trade-offs
 
-**2.Focus on Product-Relevant Dimensions**
+**2. Focus on Product-Relevant Dimensions**
  Where applicable, connect insights to:
 
-\-Model performance & reliability
+- Model performance & reliability
 
-\-User trust & adoption
+- User trust & adoption
 
-\-Global scalability / localization
+- Global scalability / localization
 
-\-Data strategy & annotation pipelines
+- Data strategy & annotation pipelines
 
-\-Compliance, policy, and reputational risk
+- Compliance, policy, and reputational risk
 
-**3.Make It Decision-Oriented**
+**3. Make It Decision-Oriented**
 
 Avoid abstract statements (e.g., "bias is important"). Instead, frame insights as:
 
-\-What product leaders may be getting wrong or overlooking
+- What product leaders may be getting wrong or overlooking
 
-\-Where current approaches are insufficient
+- Where current approaches are insufficient
 
-\-What decisions need to change
+- What decisions need to change
 
-**4.Surface Strategic Tensions**
+**4. Surface Strategic Tensions**
 
-\-Highlight trade-offs (e.g., speed vs. cultural nuance, scale vs. localization)
+- Highlight trade-offs (e.g., speed vs. cultural nuance, scale vs. localization)
 
-\-Identify where different stakeholders (engineers, annotators, policymakers) are misaligned
+- Identify where different stakeholders (engineers, annotators, policymakers) are misaligned
 
-**5.Actionable Framing**
+**5. Actionable Framing**
 
 Translate insights into:
 
-\-Strategic priorities
+- Strategic priorities
 
-\-Product design considerations
+- Product design considerations
 
-\-Organizational implications (e.g., workflows, roles, incentives)
+- Organizational implications (e.g., workflows, roles, incentives)
 
-**6.No Generic Ethics Language**
+**6. No Generic Ethics Language**
 
-\-Ground everything in product and business consequences
+- Ground everything in product and business consequences
 
-\-Avoid vague recommendations unless tied to concrete impact
+- Avoid vague recommendations unless tied to concrete impact
 
-**\*Output Format\***
+**Output Format**
 
-**1\. Executive Summary (5–7 sentences)**
+**1. Executive Summary (5–7 sentences)**
 
 * Clear, high-level articulation of why this matters for the business
 
-**2\. Strategic Implications by Theme**
+**2. Strategic Implications by Theme**
 
 **For each theme:**
 
@@ -231,12 +231,12 @@ Translate insights into:
 
 * Any conflicting priorities revealed
 
-**3\. Cross-Cutting Strategic Insights**
+**3. Cross-Cutting Strategic Insights**
 
 * 3–5 high-level insights that cut across themes
    (e.g., systemic risks, organizational blind spots)
 
-**4\. Recommended Strategic Priorities**
+**4. Recommended Strategic Priorities**
 
 * Priority 1:
 * Priority 2:
@@ -244,7 +244,7 @@ Translate insights into:
 
 ---
 
-# 5-"Then what?" \- Recommendations
+# 5- "Then what?" - Recommendations
 
 * Move from **insight → execution**
 
@@ -252,74 +252,74 @@ Acting as a senior product strategy leader defining concrete next steps based on
 
 Focus on:
 
-\-What should be done **next**
+- What should be done **next**
 
-\-How it should be done
+- How it should be done
 
-\-Who should own it
+- Who should own it
 
-\-Why it is strategically important
+- Why it is strategically important
 
-\*Instructions\*
+**Instructions**
 
-1.Prioritize Ruthlessly
+**1. Prioritize Ruthlessly**
 
-\-Recommend **3–5 high-impact actions max**
+- Recommend **3–5 high-impact actions max**
 
-\-Focus on what will materially change product outcomes or risk exposure
+- Focus on what will materially change product outcomes or risk exposure
 
-\-Avoid "nice-to-have" recommendations
+- Avoid "nice-to-have" recommendations
 
-\-Avoid "doing more research" as a next step.
+- Avoid "doing more research" as a next step.
 
-**2.Be Concrete and Operational**
+**2. Be Concrete and Operational**
  For each recommendation, specify:
 
-\-What exactly should be done
+- What exactly should be done
 
-\-How it would be implemented (process, system, or change)
+- How it would be implemented (process, system, or change)
 
-\-Who should own it (e.g., Product, Eng, Data, Policy)
+- Who should own it (e.g., Product, Eng, Data, Policy)
 
-**3.Tie to Business Impact**
+**3. Tie to Business Impact**
 
 Explicitly connect each recommendation to:
 
-\-Risk reduction
+- Risk reduction
 
-\-Product quality / performance
+- Product quality / performance
 
-\-User trust / market impact
+- User trust / market impact
 
-**4.Incorporate Time Horizons**
+**4. Incorporate Time Horizons**
 
 Classify actions as:
 
-\-Immediate (0–3 months)
+- Immediate (0–3 months)
 
-\-Mid-term (3–9 months)
+- Mid-term (3–9 months)
 
-\-Long-term (9+ months)
+- Long-term (9+ months)
 
-**5.Address Strategic Tensions**
+**5. Address Strategic Tensions**
 
-\-Where relevant, acknowledge trade-offs
+- Where relevant, acknowledge trade-offs
 
-\-Indicate what is being optimized vs. deprioritized
+- Indicate what is being optimized vs. deprioritized
 
-**6.Feasibility and Leverage**
+**6. Feasibility and Leverage**
 
-\-Prioritize actions that are implementable within a product org
+- Prioritize actions that are implementable within a product org
 
-\-Avoid recommendations that require unrealistic structural change unless flagged as long-term
+- Avoid recommendations that require unrealistic structural change unless flagged as long-term
 
-**\*Output Format\***
+**Output Format**
 
-1\. Executive Direction (3–5 sentences)
+**1. Executive Direction (3–5 sentences)**
 
 * Overall strategic posture (e.g., "shift from reactive bias mitigation to proactive design")
 
-2\. Priority Recommendations
+**2. Priority Recommendations**
 
 For each recommendation:
 
@@ -331,11 +331,11 @@ For each recommendation:
  **Time Horizon**: (Immediate / Mid / Long-term)
  **Key Trade-offs**: (if any)
 
-3\. Sequencing / Roadmap Logic
+**3. Sequencing / Roadmap Logic**
 
 * Brief explanation of what should happen first and why
 
-4\. Risks of Inaction
+**4. Risks of Inaction**
 
 * 2–3 concise statements about what happens if these actions are not taken
 
@@ -345,68 +345,68 @@ For each recommendation:
 
 Now identify unanswered questions, limitations, and research gaps based on the study's research questions, dataset, and thematic findings.
 
-**\*Instructions\***
+**Instructions**
 
-**1.Assess Coverage of Research Questions**
+**1. Assess Coverage of Research Questions**
 
 For each research question:
 
-\-Evaluate how fully it is answered by the themes
+- Evaluate how fully it is answered by the themes
 
-\-Identify partial answers, weak coverage, or missing dimensions
+- Identify partial answers, weak coverage, or missing dimensions
 
-**2.Identify Types of Gaps:**
+**2. Identify Types of Gaps:**
 Distinguish clearly between:
 
-\-Empirical gaps: e.g., Missing perspectives, stakeholders, or contexts
+- Empirical gaps: e.g., Missing perspectives, stakeholders, or contexts
 
-\-Conceptual gaps: e.g., Aspects of cultural bias or related constructs not explored
+- Conceptual gaps: e.g., Aspects of cultural bias or related constructs not explored
 
-\-Process gaps: e.g., Stages of AI development insufficiently examined
+- Process gaps: e.g., Stages of AI development insufficiently examined
 
-\-Comparative gaps: e.g., Lack of contrast across groups
+- Comparative gaps: e.g., Lack of contrast across groups
 
-\-Methodological gaps: e.g., Limits caused by data type, sampling, or approach
+- Methodological gaps: e.g., Limits caused by data type, sampling, or approach
 
-**3.Unanswered or Emergent Questions**
+**3. Unanswered or Emergent Questions**
 
 Generate specific, researchable questions that arise from:
 
-\-Tensions or contradictions in the themes
+- Tensions or contradictions in the themes
 
-\-Areas where themes are underdeveloped
+- Areas where themes are underdeveloped
 
-\-Implicit issues not directly addressed
+- Implicit issues not directly addressed
 
-**4.Grounding Requirement**
+**4. Grounding Requirement**
 
 Every identified gap must be:
 
-\-Linked to specific themes or missing areas in the analysis
+- Linked to specific themes or missing areas in the analysis
 
-\-Linked to the research questions
+- Linked to the research questions
 
-\-Not generic
+- Not generic
 
-**5.Prioritization**
+**5. Prioritization**
 
 Indicate which gaps are:
 
-\-Critical (undermine core findings)
+- Critical (undermine core findings)
 
-\-Important (limit depth or scope)
+- Important (limit depth or scope)
 
-\-Future research opportunities
+- Future research opportunities
 
-**\*Output Format\***
+**Output Format**
 
-**1\. Coverage Assessment by Research Question**
+**1. Coverage Assessment by Research Question**
 
-\-RQ1: \[Assessment \+ gaps\]
+- RQ1: [Assessment + gaps]
 
-\-RQ2: …
+- RQ2: ...
 
-**2\. Identified Gaps**
+**2. Identified Gaps**
 
 For each gap:
 
@@ -416,27 +416,27 @@ Gap Type: (empirical / conceptual / etc.)
  Linked Theme(s):
  Why It Matters:
 
-**3\. Unanswered / Emerging Research Questions**
+**3. Unanswered / Emerging Research Questions**
 
-\-Question 1
+- Question 1
 
-\-Question 2
+- Question 2
 
-\-…
+- ...
 
-**4\. Priority Summary**
+**4. Priority Summary**
 
-\-Critical gaps:
+- Critical gaps:
 
-\-Important gaps:
+- Important gaps:
 
-\-Future research directions:
+- Future research directions:
 
 ---
 
 # 7-Reporting
 
-Now, synthesize the full analysis into a concise, executive-ready report (maximum \~6 pages) that communicates the most important insights, implications, and recommendations.
+Now, synthesize the full analysis into a concise, executive-ready report (maximum ~6 pages) that communicates the most important insights, implications, and recommendations.
 
 Produce a clear, tightly structured report that:
 
@@ -445,87 +445,87 @@ Produce a clear, tightly structured report that:
 * Explains why findings matter for the business
 * Provides concrete, prioritized recommendations
 
-**\*Instructions\***
+**Instructions**
 
-**1.Prioritize Ruthlessly, force compression without sacrificing meaning**
+**1. Prioritize Ruthlessly, force compression without sacrificing meaning**
 
-\-Include only the most important insights
+- Include only the most important insights
 
-\-Remove redundancy or duplicates across sections
+- Remove redundancy or duplicates across sections
 
-\-Do not repeat the same idea in multiple places
+- Do not repeat the same idea in multiple places
 
-**2.Narrative Flow**
+**2. Narrative Flow**
 
-\-Ensure a logical progression:
+- Ensure a logical progression:
 Context/Findings → Business implications/Why it matters → What to do next/Recommendations
 
-\-Avoid "stage-by-stage" structure, no mention of coding.
+- Avoid "stage-by-stage" structure, no mention of coding.
 
-**3\. Analytical Density**
+**3. Analytical Density**
 
-\-Favor insight-rich synthesis over descriptive summaries
+- Favor insight-rich synthesis over descriptive summaries
 
-\-Each paragraph should deliver a distinct point
+- Each paragraph should deliver a distinct point
 
-**4\. Audience Calibration**
+**4. Audience Calibration**
 
 Write for product leaders / decision-makers and emphasize:
 
-\-Business impact
+- Business impact
 
-\-Product risk/opportunity
+- Product risk/opportunity
 
-\-Strategic trade-offs
+- Strategic trade-offs
 
-**5.Conciseness Constraints**
+**5. Conciseness Constraints**
 
-\-Target \~6-10 pages equivalent (word, google docs)
+- Target ~6-10 pages equivalent (word, google docs)
 
-\-Use tight language; avoid filler, and academic hedging
+- Use tight language; avoid filler, and academic hedging
 
-\-Avoid generic language
+- Avoid generic language
 
-**\*Output Structure\***
+**Output Structure**
 
 **Insights**
 
-3–5 major themes, for each, structure each as as "what \- findings" → "So what \- why this matters" → "Then what \- recommendations"
+3–5 major themes, for each, structure each as as "what - findings" → "So what - why this matters" → "Then what - recommendations"
 
 **Findings:**
-\-Clear analytical insight (not just description)
+- Clear analytical insight (not just description)
 
-\-What's actually happening
+- What's actually happening
 
-\-Any key tension or contradiction
+- Any key tension or contradiction
 
 **Why This Matters:**
 
-\-Business and product implications
+- Business and product implications
 
-\-Risk exposure
+- Risk exposure
 
-\-Impact on product quality, trust, scalability
+- Impact on product quality, trust, scalability
 
-\-Highlight what product teams are likely underestimating or missing
+- Highlight what product teams are likely underestimating or missing
 
 **Recommendations:**
 
-\-Prioritized actions
+- Prioritized actions
 
-\-What to do
+- What to do
 
-\-Why it matters
+- Why it matters
 
-\-High-level execution approach
+- High-level execution approach
 
-**Then Gaps & Open Questions (½–1 page)**
+**Then Gaps & Open Questions (1/2–1 page)**
 
-\-Most critical gaps only, frame them as:
+- Most critical gaps only, frame them as:
 
-\-What we still don't understand
+- What we still don't understand
 
-\-Why that uncertainty matters for decisions
+- Why that uncertainty matters for decisions
 
 ---
 

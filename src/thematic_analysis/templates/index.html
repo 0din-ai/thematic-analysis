@@ -512,6 +512,7 @@
       <strong>Analysis complete!</strong> All stages have been processed.
       <div class="btn-group" style="justify-content:center;">
         <button class="btn btn-ghost" onclick="downloadZip()">Download All (.zip)</button>
+        <button class="btn btn-ghost" onclick="showSetup()">Back to Projects</button>
         <button class="btn btn-ghost" onclick="showSetup()">New Project</button>
       </div>
     </div>
@@ -574,11 +575,17 @@ window.addEventListener('keydown', function(e) {
 });
 
 // --- Views ---
-function showView(id) {
+let suppressPopstate = false;
+function showView(id, pushHistory) {
   const current = document.querySelector('.view.active');
   if (current) previousView = current.id;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  if (pushHistory !== false) {
+    suppressPopstate = true;
+    history.pushState({view: id, projectDir: projectDir}, '', '');
+    suppressPopstate = false;
+  }
 }
 function showSetup() { pendingTranscripts = []; loadProjects(); showView('view-setup'); }
 
@@ -595,6 +602,26 @@ function goBackFromSettings() {
   else if (previousView === 'view-project-detail') showView('view-project-detail');
   else showSetup();
 }
+
+// Browser back button handling
+window.addEventListener('popstate', function(e) {
+  if (suppressPopstate) return;
+  if (isStreaming) {
+    // Prevent navigation — re-push current state
+    history.pushState({view: 'view-analysis'}, '', '');
+    if (!confirm('Leave while generating? Progress is saved up to the last completed step.')) return;
+    cancelStreaming();
+  }
+  if (e.state && e.state.view) {
+    const target = e.state.view;
+    if (target === 'view-setup') { pendingTranscripts = []; loadProjects(); showView('view-setup', false); }
+    else if (target === 'view-project-detail' && e.state.projectDir) { showProjectDetail(e.state.projectDir); }
+    else showView(target, false);
+  } else {
+    // No state — go to project list
+    pendingTranscripts = []; loadProjects(); showView('view-setup', false);
+  }
+});
 
 // --- Init ---
 async function init() {
@@ -1069,6 +1096,8 @@ async function startAnalysis() {
     currentSteps = data.steps;
     currentStepIndex = data.current_step;
     configSummary = data.config_summary || null;
+    document.getElementById('complete-msg').style.display = 'none';
+    closeOutputViewer();
     showView('view-analysis');
     renderProgress();
     renderConfigBadges();
@@ -1095,7 +1124,7 @@ function renderProgress() {
     bar.appendChild(div);
     const span = document.createElement('span');
     // Short label
-    if (s.step_type === 'coding') span.textContent = s.participant.split(' ')[0];
+    if (s.step_type === 'coding') span.textContent = s.participant;
     else if (s.step_type === 'merge') span.textContent = 'Merge';
     else {
       const map = {'02':'Clusters','03':'Themes','04':'Impact','05':'Actions','06':'Gaps','07':'Report'};
@@ -1213,8 +1242,10 @@ function showStartButton() {
   const step = currentSteps[currentStepIndex];
   const title = step ? step.title : '';
   area.innerHTML = `<div class="status-msg">Ready to run: ${escapeHtml(title)}</div>`;
+  area.style.display = '';
   document.getElementById('start-step').style.display = 'block';
   document.getElementById('decision-buttons').style.display = 'none';
+  document.getElementById('complete-msg').style.display = 'none';
   document.getElementById('step-title').textContent = title;
   document.getElementById('step-counter').textContent = `Step ${currentStepIndex + 1} of ${currentSteps.length}`;
   document.getElementById('token-count').style.display = 'none';
@@ -1265,7 +1296,7 @@ function startStreaming() {
 
     if (data.error) {
       source.close(); currentSource = null; isStreaming = false; stopTimer();
-      errEl.textContent = 'Error: ' + data.error; errEl.style.display = 'block';
+      errEl.innerHTML = friendlyError(data.error); errEl.style.display = 'block';
       buttons.style.display = 'flex';
       return;
     }
@@ -1502,6 +1533,32 @@ function showError(elementId, msg) {
   const el = document.getElementById(elementId);
   if (el) { el.textContent = msg; el.style.display = 'block'; }
 }
+function friendlyError(raw) {
+  // Try to extract nested 'message' from OpenAI-style errors:
+  // "Error code: 401 - {'error': {'message': '...', ...}}"
+  const msgMatch = raw.match(/'message':\s*'([^']+)'/);
+  if (msgMatch) {
+    let msg = msgMatch[1];
+    // Strip URLs from the message for cleanliness
+    msg = msg.replace(/\s*You can find your API key at\s+\S+\.?/, '');
+    if (/api.key|auth|unauthorized/i.test(raw)) {
+      return msg + ' <a href="#" onclick="showView(\'view-settings\');return false;" style="color:var(--primary);">Go to Settings</a> to update your key.';
+    }
+    return msg;
+  }
+  // Try JSON parse
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed.error?.message) return parsed.error.message;
+    if (parsed.message) return parsed.message;
+  } catch(e) {}
+  // Rate limit / quota
+  if (/rate.limit|too.many.requests/i.test(raw)) return 'Rate limited by OpenAI. Please wait a moment and retry.';
+  if (/quota|billing|insufficient/i.test(raw)) return 'OpenAI quota exceeded. Check your billing at platform.openai.com.';
+  // Fallback: truncate very long error strings
+  if (raw.length > 200) return raw.substring(0, 200) + '...';
+  return raw;
+}
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -1588,8 +1645,11 @@ function downloadZip() { window.location.href = '/api/download-zip'; }
 
 // --- Complete ---
 function showComplete() {
-  document.getElementById('response-area').innerHTML = '';
+  const area = document.getElementById('response-area');
+  area.innerHTML = '';
+  area.style.display = 'none';
   document.getElementById('decision-buttons').style.display = 'none';
+  document.getElementById('start-step').style.display = 'none';
   document.getElementById('loading-indicator').style.display = 'none';
   document.getElementById('step-title').textContent = 'Analysis Complete';
   document.getElementById('step-counter').textContent = '';
