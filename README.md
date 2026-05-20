@@ -1,124 +1,81 @@
 # Thematic Analysis
 
-AI-powered thematic analysis for customer interview transcripts. Automates the 7-stage qualitative analysis methodology, sending structured prompts to an AI model while letting you review each stage's output before proceeding.
+AI-powered thematic analysis for customer interview transcripts. Paste your transcripts into a browser UI and get structured qualitative analysis: open coding, theme development, business implications, recommendations, and a final executive-ready report.
 
-## Quickstart
+## Getting Started (macOS App)
 
-### 1. Install
+### First Launch
+
+1. Unzip `Thematic-Analysis-0.1.0-mac-arm64.zip`
+2. Optionally drag **Thematic Analysis.app** to your Applications folder
+3. **Right-click > Open** on first launch (required because the app is unsigned — macOS blocks unsigned apps on double-click, but right-click > Open bypasses this once)
+4. The app opens your browser to `localhost:5111`
+
+### You'll Need
+
+- An **OpenAI API key** — get one at https://platform.openai.com/api-keys
+- The app prompts you to enter your key on first use. It's saved locally in `~/.thematic-analysis/.env` and never leaves your machine (except to call the OpenAI API).
+
+## How It Works
+
+### 1. Create a Project
+
+Fill in:
+- **Project name** — identifies your study
+- **Your name** (as moderator) — so the AI knows not to code your questions
+- **Note-takers** (optional) — other team members to exclude from coding
+- **Research questions** — what you're trying to answer
+- **Business context** — grounds the "so what" analysis in your actual situation
+- **Model + reasoning effort** — defaults to GPT-5.4 with high reasoning
+
+### 2. Add Transcripts
+
+Paste one or more interview transcripts and name each participant. Each transcript gets coded independently.
+
+### 3. Run the Analysis
+
+The tool runs 7 stages sequentially, streaming each response in real-time:
+
+| Stage | What It Does |
+|-------|-------------|
+| 1. Open Coding | Identifies codes with verbatim quotes (per transcript) |
+| 2. Axial/Focus Coding | Groups codes into thematic clusters, merges duplicates |
+| 3. Develop Themes | Builds interpretive themes answering your research questions |
+| 4. Why It Matters | Translates themes into business/product implications |
+| 5. Recommendations | Prioritized, actionable next steps with owners and timelines |
+| 6. Gap Analysis | Identifies unanswered questions and research limitations |
+| 7. Reporting | Final executive-ready synthesis (~6-10 pages) |
+
+After each stage, you **review the output** and choose to continue, retry, or quit. Progress is saved — you can quit and resume later.
+
+### 4. Export
+
+Download individual stage outputs or all outputs as a zip.
+
+## Tips
+
+- **Verbatim quote verification**: After coding, the tool checks that quoted text actually appears word-for-word in your transcripts. You can reject any misquoted passages.
+- **Resume**: If you close the app mid-analysis, reopen it and select your project — it picks up where you left off.
+- **Multiple transcripts**: Each transcript is coded independently, then codes are merged before the shared analysis stages.
+
+## For Developers
+
+If you're running from source instead of the `.app` bundle:
 
 ```bash
-# Clone the repo
-git clone <repo-url>
-cd thematic-analysis
-
-# Install dependencies (requires uv — https://docs.astral.sh/uv/)
 uv sync
+uv run thematic-analysis   # opens browser to localhost:5111
 ```
 
-### 2. Set up your API key
+### Building the `.app`
 
 ```bash
-cp .env.example .env
-# Edit .env and add your OpenAI API key
+bash scripts/build-macos.sh
+cd dist && zip -r "Thematic-Analysis-0.1.0-mac-arm64.zip" "Thematic Analysis.app"
 ```
 
-### 3. Create a project
+Requires Python 3.13+ and [uv](https://docs.astral.sh/uv/).
 
-```bash
-uv run thematic-analysis init
-```
+## Example Transcript
 
-This walks you through setting up:
-- Project name
-- Your name (as moderator/interviewer)
-- Research questions
-- Business context
-- Model and reasoning settings
-
-### 4. Add your transcript
-
-```bash
-# From a local file:
-uv run thematic-analysis import-transcript ~/Downloads/interview-transcript.txt \
-    --participant "Jane Doe"
-
-# From a Google Doc (must be shared with "anyone with the link"):
-uv run thematic-analysis import-transcript \
-    "https://docs.google.com/document/d/YOUR_DOC_ID/edit" \
-    --participant "Jane Doe"
-```
-
-### 5. Run the analysis
-
-```bash
-cd projects/your-project-name
-uv run thematic-analysis run
-```
-
-The AI streams its response to your terminal. After each stage, you can:
-- **Enter** — accept and continue
-- **r** — retry the stage
-- **q** — quit (resume later with the same command)
-
-## The 8 Analysis Steps
-
-| Step | Output file | What happens |
-|------|-------------|-------------|
-| 1 | `01a-open-codes.md` | Initial open coding with verbatim quotes |
-| 2 | `01b-open-codes-list.md` | Clean list of all codes |
-| 3 | `02-axial-focus-coding.md` | Group/merge codes into thematic clusters |
-| 4 | `03-develop-themes.md` | Develop themes answering your research questions |
-| 5 | `04-why-it-matters.md` | Business/product implications |
-| 6 | `05-recommendations.md` | Prioritized actionable recommendations |
-| 7 | `06-find-the-gaps.md` | Research gaps and unanswered questions |
-| 8 | `07-reporting.md` | Final executive-ready report |
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `thematic-analysis init [name]` | Create a new analysis project interactively |
-| `thematic-analysis run` | Run the analysis (auto-finds config in current dir) |
-| `thematic-analysis run --dry-run` | Preview what would happen without API calls |
-| `thematic-analysis run --config path/to/config.toml` | Run with a specific config |
-| `thematic-analysis run --model gpt-5.5` | Override the model |
-| `thematic-analysis run --reasoning-effort xhigh` | Override reasoning effort |
-| `thematic-analysis import-transcript <source> --participant "Name"` | Import a transcript |
-
-## Config reference
-
-The config file (`config.toml`) is generated by `init` but can be edited manually:
-
-```toml
-[settings]
-model = "gpt-5.4"                          # OpenAI model ID
-reasoning_effort = "high"                   # none/minimal/low/medium/high/xhigh
-moderator_name = "Your Name"               # Distinguishes you from participants
-# prompts_file = "./custom-prompts.md"     # Uncomment for custom prompts
-
-[context]
-research_questions = """..."""              # Injected into Stage 3
-business_context = """..."""                # Injected into Stage 4
-
-[[transcripts]]
-path = "./transcripts/transcript.txt"
-participant = "Participant Name"
-```
-
-## Resume
-
-The analysis auto-saves after each stage. If you quit or get interrupted, just run the same command again — it will offer to resume from where you left off.
-
-## Comparing runs
-
-Use `--output-dir` to save different runs separately:
-
-```bash
-uv run thematic-analysis run --output-dir output-gpt4o --model gpt-4o
-uv run thematic-analysis run --output-dir output-gpt54-high --model gpt-5.4 --reasoning-effort high
-```
-
-## Requirements
-
-- Python 3.13+
-- An OpenAI API key (`OPENAI_API_KEY` in `.env`)
+See `examples/example-transcript.txt` for a sample interview transcript you can paste into the tool to try it out. The `examples/example-config.toml` shows the configuration format (used internally by the tool when you fill in the project setup form).
