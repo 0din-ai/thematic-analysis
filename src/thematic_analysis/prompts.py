@@ -49,7 +49,10 @@ def parse_prompts(prompts_path: Path) -> list[Stage]:
             continue
         number = int(num_match.group(1))
 
-        title = re.sub(r"^# \d+[-\s]*", "", header).strip().strip('"')
+        title = re.sub(r"^# \d+[-\s]*", "", header).strip()
+        # Only strip wrapping quotes if the entire title is quoted
+        if len(title) >= 2 and title[0] == '"' and title[-1] == '"':
+            title = title[1:-1]
 
         raw_parts = re.split(r"^\s*---\s*$", body, flags=re.MULTILINE)
         sub_prompts = [p.strip() for p in raw_parts if p.strip()]

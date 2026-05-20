@@ -341,7 +341,7 @@ For each recommendation:
 
 ---
 
-# 6-Find the gaps (do after 3 or at the end?)
+# 6-Gap analysis
 
 Now identify unanswered questions, limitations, and research gaps based on the study's research questions, dataset, and thematic findings.
 

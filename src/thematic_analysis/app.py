@@ -913,6 +913,24 @@ def list_outputs():
     return jsonify(files)
 
 
+@app.route("/api/project-output")
+def project_output():
+    """Return a single output file from a project by path (no active session needed)."""
+    project_path = request.args.get("path", "")
+    filename = request.args.get("filename", "")
+    if not project_path or not filename:
+        return jsonify({"error": "Missing path or filename"}), 400
+    if not filename.endswith(".md"):
+        return jsonify({"error": "Invalid filename"}), 400
+
+    filepath = Path(project_path) / "output" / filename
+    if not filepath.exists():
+        return jsonify({"error": "File not found"}), 404
+
+    content = filepath.read_text(encoding="utf-8")
+    return jsonify({"filename": filename, "content": content})
+
+
 @app.route("/api/outputs/<filename>")
 def get_output(filename: str):
     if _state["project_dir"] is None:
@@ -928,6 +946,26 @@ def get_output(filename: str):
 
     content = filepath.read_text(encoding="utf-8")
     return jsonify({"filename": filename, "content": content})
+
+
+@app.route("/api/download-file/<filename>")
+def download_file(filename: str):
+    """Download a single output file as a .md file."""
+    if _state["project_dir"] is None:
+        return jsonify({"error": "No project active"}), 400
+    if not filename.endswith(".md"):
+        return jsonify({"error": "Invalid filename"}), 400
+
+    filepath = _state["project_dir"] / "output" / filename
+    if not filepath.exists():
+        return jsonify({"error": "File not found"}), 404
+
+    return send_file(
+        filepath,
+        mimetype="text/markdown",
+        as_attachment=True,
+        download_name=filename,
+    )
 
 
 @app.route("/api/download-zip")

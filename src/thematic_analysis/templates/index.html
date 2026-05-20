@@ -43,7 +43,7 @@
     cursor: pointer; transition: background 0.15s; }
   .btn-primary { background: var(--primary); color: white; }
   .btn-primary:hover { background: var(--primary-hover); }
-  .btn-primary:disabled { background: #93b4f5; cursor: not-allowed; }
+  .btn-primary:disabled { background: #9ca3af; cursor: not-allowed; }
   .btn-success { background: var(--success); color: white; }
   .btn-success:hover { background: #15803d; }
   .btn-warning { background: var(--warning); color: white; }
@@ -252,6 +252,7 @@
         <input type="text" id="project-search" placeholder="Search projects..." oninput="filterProjects()" style="margin-bottom:0;" />
       </div>
       <ul class="project-list" id="project-list"></ul>
+      <div id="project-show-all" style="display:none; margin-bottom:8px;"></div>
       <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border);">
       <h3>Or create a new project below</h3>
     </div>
@@ -385,6 +386,15 @@
         <ul class="output-list" id="detail-output-list"></ul>
       </div>
 
+      <!-- Inline output preview for detail page -->
+      <div id="detail-output-viewer" style="display:none; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h3 id="detail-output-viewer-title" style="font-size:14px;"></h3>
+          <button class="btn btn-ghost btn-sm" onclick="closeDetailOutputViewer()">Close</button>
+        </div>
+        <div class="response-area" id="detail-output-viewer-content"></div>
+      </div>
+
       <div id="detail-error" class="error-msg" style="display:none;"></div>
       <div class="btn-group">
         <button class="btn btn-ghost" onclick="showSetup()">Back to Projects</button>
@@ -435,7 +445,8 @@
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <div>
-          <a href="#" onclick="backToProjects(); return false;" style="font-size:14px; color:var(--primary); text-decoration:none; display:inline-flex; align-items:center; gap:4px; margin-bottom:4px;">&#8592; <span id="project-name-display"></span></a>
+          <a href="#" onclick="backToProjects(); return false;" style="font-size:14px; color:var(--primary); text-decoration:none; display:inline-flex; align-items:center; gap:4px; margin-bottom:4px;">&#8592; Back to Projects</a>
+          <div id="project-name-display" style="font-size:12px; color:var(--text-dim);"></div>
           <h2 id="step-title">Loading...</h2>
           <div id="config-badges" style="display:none; font-size:12px; color:var(--text-dim); margin-top:2px;"></div>
         </div>
@@ -503,7 +514,11 @@
     <div class="card" id="output-viewer" style="display:none;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h3 id="output-viewer-title"></h3>
-        <button class="btn btn-ghost btn-sm" onclick="closeOutputViewer()">Close</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost btn-sm" id="btn-download-output" onclick="downloadCurrentOutput()">Download</button>
+          <button class="btn btn-ghost btn-sm" id="btn-copy-output" onclick="copyCurrentOutput()">Copy</button>
+          <button class="btn btn-ghost btn-sm" onclick="closeOutputViewer()">Close</button>
+        </div>
       </div>
       <div class="response-area" id="output-viewer-content"></div>
     </div>
@@ -513,7 +528,7 @@
       <div class="btn-group" style="justify-content:center;">
         <button class="btn btn-ghost" onclick="downloadZip()">Download All (.zip)</button>
         <button class="btn btn-ghost" onclick="showSetup()">Back to Projects</button>
-        <button class="btn btn-ghost" onclick="showSetup()">New Project</button>
+        <button class="btn btn-ghost" onclick="newProject()">New Project</button>
       </div>
     </div>
   </div>
@@ -558,6 +573,7 @@ let historyVisible = false;
 let currentSource = null; // EventSource for cancel support
 let previousView = null; // Track where user came from (for Settings back button)
 let configSummary = null; // Config summary from /api/start
+let existingProjectNames = []; // Track existing project names for duplicate check
 
 // Warn before closing tab during active analysis
 window.addEventListener('beforeunload', function(e) {
@@ -588,6 +604,21 @@ function showView(id, pushHistory) {
   }
 }
 function showSetup() { pendingTranscripts = []; loadProjects(); showView('view-setup'); }
+
+function newProject() {
+  document.getElementById('project-name').value = '';
+  document.getElementById('moderator-name').value = '';
+  document.getElementById('note-takers').value = '';
+  document.getElementById('research-questions').value = '';
+  document.getElementById('business-context').value = '';
+  document.getElementById('model').value = 'gpt-5.4';
+  document.getElementById('reasoning-effort').value = 'high';
+  document.getElementById('setup-error').style.display = 'none';
+  document.getElementById('setup-warnings').style.display = 'none';
+  pendingTranscripts = [];
+  loadProjects();
+  showView('view-setup');
+}
 
 function backToProjects() {
   if (isStreaming) {
@@ -636,10 +667,18 @@ async function init() {
 }
 
 // --- API Key ---
+function validateApiKeyFormat(key) {
+  if (!key.startsWith('sk-')) return 'API key should start with "sk-". Make sure you\'re using an OpenAI API key.';
+  if (key.length < 20) return 'API key seems too short. Please check and try again.';
+  return null;
+}
+
 async function saveApiKey() {
   const key = document.getElementById('api-key').value.trim();
   const err = document.getElementById('key-error');
   if (!key) { err.textContent = 'Please enter your API key.'; err.style.display = 'block'; return; }
+  const formatErr = validateApiKeyFormat(key);
+  if (formatErr) { err.textContent = formatErr; err.style.display = 'block'; return; }
   err.style.display = 'none';
   try {
     const resp = await fetch('/api/save-key', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
@@ -680,6 +719,8 @@ async function saveSettingsKey() {
   const key = document.getElementById('settings-api-key').value.trim();
   const err = document.getElementById('settings-key-error');
   if (!key) { err.textContent = 'Please enter an API key.'; err.style.display = 'block'; return; }
+  const formatErr = validateApiKeyFormat(key);
+  if (formatErr) { err.textContent = formatErr; err.style.display = 'block'; return; }
   err.style.display = 'none';
   try {
     const resp = await fetch('/api/save-key', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
@@ -714,8 +755,9 @@ async function loadProjects() {
   try {
     const resp = await fetch('/api/projects');
     const projects = await resp.json();
-    if (projects.length === 0) { container.style.display = 'none'; return; }
+    if (projects.length === 0) { container.style.display = 'none'; existingProjectNames = []; return; }
     container.style.display = 'block';
+    existingProjectNames = projects.map(p => p.name.toLowerCase());
     projects.forEach(p => {
       const li = document.createElement('li');
       const participants = (p.participants || []).map(escapeHtml).join(', ');
@@ -743,6 +785,19 @@ async function loadProjects() {
     const searchContainer = document.getElementById('project-search-container');
     searchContainer.style.display = projects.length >= 5 ? 'block' : 'none';
     document.getElementById('project-search').value = '';
+
+    // Collapse long project lists
+    const MAX_VISIBLE = 5;
+    const showAllContainer = document.getElementById('project-show-all');
+    if (projects.length > MAX_VISIBLE) {
+      const items = list.querySelectorAll('li');
+      items.forEach((li, i) => { if (i >= MAX_VISIBLE) li.style.display = 'none'; });
+      showAllContainer.innerHTML = `<button class="btn btn-ghost btn-sm" style="width:100%;" onclick="toggleShowAllProjects()">Show all ${projects.length} projects</button>`;
+      showAllContainer.style.display = 'block';
+      showAllContainer.dataset.expanded = 'false';
+    } else {
+      showAllContainer.style.display = 'none';
+    }
   } catch(e) { container.style.display = 'none'; }
 }
 
@@ -752,20 +807,44 @@ function filterProjects() {
     const name = li.querySelector('strong').textContent.toLowerCase();
     li.style.display = name.includes(query) ? '' : 'none';
   });
+  // When searching, show all matches (override collapse)
+  const showAllContainer = document.getElementById('project-show-all');
+  showAllContainer.style.display = query ? 'none' : (showAllContainer.dataset.expanded === 'false' ? 'block' : 'none');
+}
+
+function toggleShowAllProjects() {
+  const container = document.getElementById('project-show-all');
+  const items = document.querySelectorAll('#project-list li');
+  const expanded = container.dataset.expanded === 'true';
+  if (expanded) {
+    items.forEach((li, i) => { if (i >= 5) li.style.display = 'none'; });
+    container.innerHTML = `<button class="btn btn-ghost btn-sm" style="width:100%;" onclick="toggleShowAllProjects()">Show all ${items.length} projects</button>`;
+    container.dataset.expanded = 'false';
+  } else {
+    items.forEach(li => { li.style.display = ''; });
+    container.innerHTML = `<button class="btn btn-ghost btn-sm" style="width:100%;" onclick="toggleShowAllProjects()">Show fewer</button>`;
+    container.dataset.expanded = 'true';
+  }
 }
 
 // --- Transcript management ---
 function goToTranscripts() {
   const name = document.getElementById('project-name').value.trim();
+  const err = document.getElementById('setup-error');
   if (!name) {
-    const err = document.getElementById('setup-error');
     err.textContent = 'Project name is required.'; err.style.display = 'block'; return;
   }
-  document.getElementById('setup-error').style.display = 'none';
+  if (existingProjectNames.includes(name.toLowerCase())) {
+    err.textContent = `A project named "${name}" already exists. Please choose a different name or delete the existing project first.`;
+    err.style.display = 'block'; return;
+  }
+  err.style.display = 'none';
 
   // Non-blocking warnings for empty fields
   const warningEl = document.getElementById('setup-warnings');
   const warnings = [];
+  if (!document.getElementById('moderator-name').value.trim())
+    warnings.push('Moderator name is empty. The AI uses this to distinguish the interviewer from participants.');
   if (!document.getElementById('research-questions').value.trim())
     warnings.push('Research questions are empty. Analysis quality improves significantly with specific research questions.');
   if (!document.getElementById('business-context').value.trim())
@@ -1007,6 +1086,7 @@ function renderProjectDetail(data) {
     data.outputs.forEach(f => {
       const li = document.createElement('li');
       li.innerHTML = `<span>${escapeHtml(f.title)}</span><span style="color:var(--text-dim);font-size:12px;">${escapeHtml(f.filename)}</span>`;
+      li.onclick = () => viewDetailOutput(f.filename, f.title, li);
       outputList.appendChild(li);
     });
   } else {
@@ -1246,6 +1326,8 @@ function showStartButton() {
   document.getElementById('start-step').style.display = 'block';
   document.getElementById('decision-buttons').style.display = 'none';
   document.getElementById('complete-msg').style.display = 'none';
+  document.getElementById('btn-toggle-prompt').style.display = '';
+  document.getElementById('btn-toggle-history').style.display = '';
   document.getElementById('step-title').textContent = title;
   document.getElementById('step-counter').textContent = `Step ${currentStepIndex + 1} of ${currentSteps.length}`;
   document.getElementById('token-count').style.display = 'none';
@@ -1622,6 +1704,9 @@ async function refreshOutputs() {
   } catch(e) { card.style.display = 'none'; }
 }
 
+let currentOutputFilename = '';
+let currentOutputRaw = '';
+
 async function viewOutput(filename, liEl) {
   try {
     const resp = await fetch(`/api/outputs/${filename}`);
@@ -1629,15 +1714,48 @@ async function viewOutput(filename, liEl) {
     if (data.error) return;
     document.querySelectorAll('.output-list li').forEach(li => li.classList.remove('active'));
     if (liEl) liEl.classList.add('active');
+    currentOutputFilename = filename;
+    currentOutputRaw = data.content;
     const viewer = document.getElementById('output-viewer');
     document.getElementById('output-viewer-title').textContent = filename;
     document.getElementById('output-viewer-content').innerHTML = marked.parse(data.content);
     viewer.style.display = 'block';
   } catch(e) { showError('analysis-error', 'Could not load output file.'); }
 }
+
+function downloadCurrentOutput() {
+  if (currentOutputFilename) window.location.href = `/api/download-file/${encodeURIComponent(currentOutputFilename)}`;
+}
+
+async function copyCurrentOutput() {
+  if (!currentOutputRaw) return;
+  try {
+    await navigator.clipboard.writeText(currentOutputRaw);
+    const btn = document.getElementById('btn-copy-output');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  } catch(e) { showError('analysis-error', 'Could not copy to clipboard.'); }
+}
 function closeOutputViewer() {
   document.getElementById('output-viewer').style.display = 'none';
   document.querySelectorAll('.output-list li').forEach(li => li.classList.remove('active'));
+}
+
+async function viewDetailOutput(filename, title, liEl) {
+  try {
+    const resp = await fetch(`/api/project-output?path=${encodeURIComponent(projectDir)}&filename=${encodeURIComponent(filename)}`);
+    const data = await resp.json();
+    if (data.error) return;
+    document.querySelectorAll('#detail-output-list li').forEach(li => li.classList.remove('active'));
+    if (liEl) liEl.classList.add('active');
+    document.getElementById('detail-output-viewer-title').textContent = title || filename;
+    document.getElementById('detail-output-viewer-content').innerHTML = marked.parse(data.content);
+    document.getElementById('detail-output-viewer').style.display = 'block';
+  } catch(e) { showError('detail-error', 'Could not load output file.'); }
+}
+function closeDetailOutputViewer() {
+  document.getElementById('detail-output-viewer').style.display = 'none';
+  document.querySelectorAll('#detail-output-list li').forEach(li => li.classList.remove('active'));
 }
 
 // --- Download ---
@@ -1651,6 +1769,8 @@ function showComplete() {
   document.getElementById('decision-buttons').style.display = 'none';
   document.getElementById('start-step').style.display = 'none';
   document.getElementById('loading-indicator').style.display = 'none';
+  document.getElementById('btn-toggle-prompt').style.display = 'none';
+  document.getElementById('btn-toggle-history').style.display = 'none';
   document.getElementById('step-title').textContent = 'Analysis Complete';
   document.getElementById('step-counter').textContent = '';
   document.getElementById('complete-msg').style.display = 'block';
