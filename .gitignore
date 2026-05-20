@@ -12,9 +12,8 @@ wheels/
 # Environment
 .env
 
-# Analysis outputs
-projects/*/output/
-projects/*/transcripts/
+# Analysis projects (user data)
+projects/
 
 # OS
 .DS_Store
